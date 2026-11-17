@@ -1,0 +1,6 @@
+{
+  "name": "La Caballería - Club de Equitación",
+  "description": "Sitio web oficial de La Caballería Club de Equitación. Aprender también es montar: escuela ecuestre formativa y familiar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

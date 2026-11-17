@@ -1,0 +1,227 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --brand-red: #D21923;
+    --brand-red-hover: #b8141d;
+    --brand-black: #141416;
+    --brand-surface: #1a1a1d;
+    --brand-card: #202024;
+    --brand-card-hover: #26262b;
+    --brand-white: #FFFFFF;
+  }
+
+  body {
+    font-family: 'Montserrat', sans-serif;
+    background-color: var(--brand-black);
+    color: var(--brand-white);
+    overflow-x: clip;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, .font-serif-brand {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #141416;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a2f;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D21923;
+}
+
+/* Diagonal equestrian motion lines */
+.equestrian-diagonal-lines {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(210, 25, 35, 0.03),
+    rgba(210, 25, 35, 0.03) 1px,
+    transparent 1px,
+    transparent 20px
+  );
+}
+
+.equestrian-grid-pattern {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+/* Editorial magazine typography and outline styling */
+.text-outline-light {
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.15);
+  color: transparent;
+}
+
+.text-outline-red {
+  -webkit-text-stroke: 1.5px rgba(210, 25, 35, 0.35);
+  color: transparent;
+}
+
+.text-outline-bold {
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.25);
+  color: transparent;
+}
+
+.editorial-shadow {
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px -10px rgba(210, 25, 35, 0.2);
+}
+
+/* Hero Title Magic: Crimson & Pearl Silk Shimmer + Subtle Embers (White / Red / Black only) */
+.hero-title-magic {
+  background-image: linear-gradient(
+    112deg,
+    #ffffff 0%,
+    #ffffff 36%,
+    #e4e4e7 43%,
+    #d21923 49%,
+    #ffffff 54%,
+    #ffffff 100%
+  );
+  background-size: 260% 100%;
+  background-position: 100% 0%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 14px 36px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 28px rgba(210, 25, 35, 0.28));
+}
+
+@keyframes heroTitleSweep {
+  0%, 15% {
+    background-position: 100% 0%;
+  }
+  55%, 100% {
+    background-position: -40% 0%;
+  }
+}
+
+@keyframes heroAuraPulse {
+  0%, 100% {
+    opacity: 0.42;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes heroEmberFloat {
+  0% {
+    transform: translateY(18px) scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  75% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateY(-64px) scale(1.1);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-title-magic {
+    animation: heroTitleSweep 5.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  }
+  .hero-aura-pulse {
+    animation: heroAuraPulse 4.5s ease-in-out infinite;
+  }
+  .hero-ember {
+    animation: heroEmberFloat var(--ember-duration, 5s) ease-in-out var(--ember-delay, 0s) infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-title-magic {
+    background-position: 50% 0%;
+    animation: none;
+  }
+  .hero-aura-pulse {
+    animation: none;
+    opacity: 0.5;
+  }
+  .hero-ember {
+    animation: none;
+    opacity: 0.35;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
+/* Epic Page-Load Intro Animations (GPU compositor-only) */
+@keyframes introEmblemRise {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.86);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes introLineExpand {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes introTitleReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes introFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .intro-emblem-rise {
+    animation: introEmblemRise 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .intro-line-expand {
+    animation: introLineExpand 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+  }
+  .intro-title-reveal {
+    animation: introTitleReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+  }
+  .intro-fade-up {
+    animation: introFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.48s both;
+  }
+}
+
