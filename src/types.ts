@@ -30,6 +30,7 @@ export interface AppointmentBooking {
   date: string; // YYYY-MM-DD
   formattedDate: string;
   timeSlot: string;
+  slotId?: string;
   studentName: string;
   studentAge: string;
   guardianName: string;

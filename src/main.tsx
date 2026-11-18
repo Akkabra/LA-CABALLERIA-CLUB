@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+import { FirestoreErrorBoundary } from './components/FirestoreErrorBoundary.tsx';
 import './index.css';
 
 // Tier 1: Global Google Maps auth and quota listener before React mounts
@@ -16,4 +17,8 @@ console.error = (...args: unknown[]) => {
   }
 };
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <FirestoreErrorBoundary>
+    <App />
+  </FirestoreErrorBoundary>
+);

@@ -1,0 +1,263 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Shared Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'bryanalvarez119@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    // --- Validation Blueprints ---
+    function isValidBookingShape(data) {
+      return data.keys().hasAll([
+        'bookingCode',
+        'classTypeId',
+        'classTypeName',
+        'instructorId',
+        'instructorName',
+        'date',
+        'formattedDate',
+        'timeSlot',
+        'slotId',
+        'studentName',
+        'studentAge',
+        'guardianName',
+        'phone',
+        'email',
+        'experienceLevel',
+        'notes',
+        'status',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'bookingCode',
+        'classTypeId',
+        'classTypeName',
+        'instructorId',
+        'instructorName',
+        'date',
+        'formattedDate',
+        'timeSlot',
+        'slotId',
+        'studentName',
+        'studentAge',
+        'guardianName',
+        'phone',
+        'email',
+        'experienceLevel',
+        'notes',
+        'status',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.bookingCode is string && data.bookingCode.size() >= 4 && data.bookingCode.size() <= 24 && data.bookingCode.matches('^LC-[0-9]{6}$') &&
+      data.classTypeId is string && data.classTypeId.size() >= 2 && data.classTypeId.size() <= 60 && data.classTypeId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.classTypeName is string && data.classTypeName.size() >= 2 && data.classTypeName.size() <= 120 &&
+      data.instructorId is string && data.instructorId.size() >= 2 && data.instructorId.size() <= 60 && data.instructorId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.instructorName is string && data.instructorName.size() >= 2 && data.instructorName.size() <= 120 &&
+      data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+      data.formattedDate is string && data.formattedDate.size() >= 4 && data.formattedDate.size() <= 80 &&
+      data.timeSlot is string && data.timeSlot.size() == 5 && data.timeSlot.matches('^\\d{2}:\\d{2}$') &&
+      data.slotId is string && data.slotId.size() <= 100 &&
+      data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120 &&
+      data.studentAge is string && data.studentAge.size() >= 1 && data.studentAge.size() <= 30 &&
+      data.guardianName is string && data.guardianName.size() >= 2 && data.guardianName.size() <= 120 &&
+      data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 40 &&
+      data.email is string && data.email.size() >= 5 && data.email.size() <= 160 &&
+      data.experienceLevel in [
+        'Sin experiencia (Primera vez)',
+        'Poco conocimiento',
+        'Nivel intermedio',
+        'Avanzado'
+      ] &&
+      data.notes is string && data.notes.size() >= 1 && data.notes.size() <= 600 &&
+      data.status in ['confirmada', 'solicitada', 'cancelada'];
+    }
+
+    function isValidBookingCreate(data) {
+      return isValidBookingShape(data) &&
+        (
+          (data.instructorId == 'inst-cualquiera' && data.status == 'solicitada' && data.slotId == '') ||
+          (data.instructorId != 'inst-cualquiera' && data.status == 'confirmada' && isValidId(data.slotId))
+        ) &&
+        data.createdAt == request.time &&
+        data.updatedAt == request.time;
+    }
+
+    function isValidBookingUpdate(data) {
+      return isValidBookingShape(data) &&
+        data.createdAt == existing().createdAt &&
+        data.updatedAt == request.time;
+    }
+
+    function isValidOccupiedSlot(data) {
+      return data.keys().hasAll(['bookingId', 'date', 'timeSlot', 'instructorId', 'createdAt']) &&
+        data.keys().hasOnly(['bookingId', 'date', 'timeSlot', 'instructorId', 'createdAt']) &&
+        isValidId(data.bookingId) &&
+        data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.timeSlot is string && data.timeSlot.size() == 5 && data.timeSlot.matches('^\\d{2}:\\d{2}$') &&
+        data.instructorId is string && data.instructorId.size() >= 2 && data.instructorId.size() <= 60 && data.instructorId != 'inst-cualquiera' &&
+        data.createdAt == request.time;
+    }
+
+    function isValidBlogPost(data) {
+      return data.keys().hasAll([
+        'title',
+        'slug',
+        'category',
+        'excerpt',
+        'content',
+        'authorName',
+        'coverImageUrl',
+        'readTime',
+        'published',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'title',
+        'slug',
+        'category',
+        'excerpt',
+        'content',
+        'authorName',
+        'coverImageUrl',
+        'readTime',
+        'published',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.title is string && data.title.size() >= 3 && data.title.size() <= 160 &&
+      data.slug is string && data.slug.size() >= 3 && data.slug.size() <= 120 && data.slug.matches('^[a-z0-9\\-]+$') &&
+      data.category in ['cuidado-equino', 'consejos-principiantes', 'noticias-club'] &&
+      data.excerpt is string && data.excerpt.size() >= 10 && data.excerpt.size() <= 400 &&
+      data.content is string && data.content.size() >= 20 && data.content.size() <= 15000 &&
+      data.authorName is string && data.authorName.size() >= 2 && data.authorName.size() <= 100 &&
+      data.coverImageUrl is string && data.coverImageUrl.size() >= 8 && data.coverImageUrl.size() <= 500 &&
+      data.readTime is string && data.readTime.size() >= 2 && data.readTime.size() <= 30 &&
+      data.published is bool;
+    }
+
+    function isValidPushSubscription(data) {
+      return data.keys().hasAll(['endpoint', 'p256dh', 'auth', 'topics', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['endpoint', 'p256dh', 'auth', 'topics', 'createdAt', 'updatedAt']) &&
+        data.endpoint is string && data.endpoint.size() >= 10 && data.endpoint.size() <= 1000 &&
+        data.p256dh is string && data.p256dh.size() >= 10 && data.p256dh.size() <= 300 &&
+        data.auth is string && data.auth.size() >= 6 && data.auth.size() <= 120 &&
+        data.topics is list && data.topics.size() >= 1 && data.topics.size() <= 3 &&
+        data.topics.hasOnly(['disponibilidad', 'eventos', 'recordatorios']) &&
+        data.topics[0] is string;
+    }
+
+    // --- Collection Rules ---
+
+    // 1. Bookings (PII isolated to Admins for read/list/update/delete; atomic public create)
+    match /bookings/{bookingId} {
+      allow get: if isValidId(bookingId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(bookingId) && isValidBookingCreate(incoming()) && (
+        incoming().instructorId == 'inst-cualquiera' ||
+        (
+          getAfter(/databases/$(database)/documents/occupiedSlots/$(incoming().slotId)).data.bookingId == bookingId &&
+          getAfter(/databases/$(database)/documents/occupiedSlots/$(incoming().slotId)).data.date == incoming().date &&
+          getAfter(/databases/$(database)/documents/occupiedSlots/$(incoming().slotId)).data.timeSlot == incoming().timeSlot &&
+          getAfter(/databases/$(database)/documents/occupiedSlots/$(incoming().slotId)).data.instructorId == incoming().instructorId
+        )
+      );
+      allow update: if isValidId(bookingId) && isAdmin() && isValidBookingUpdate(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isValidId(bookingId) && isAdmin();
+    }
+
+    // 2. Public Anonymized Occupied Slots (no PII)
+    match /occupiedSlots/{slotId} {
+      allow get: if isValidId(slotId);
+      allow list: if true;
+      allow create: if isValidId(slotId) && isValidOccupiedSlot(incoming()) &&
+        !exists(/databases/$(database)/documents/occupiedSlots/$(slotId)) &&
+        existsAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId));
+      allow delete: if isValidId(slotId) && isAdmin();
+    }
+
+    // 3. Blog Posts (Public sees published only; Admin manages all)
+    match /blogPosts/{postId} {
+      allow get: if isValidId(postId) && (existing().published == true || isAdmin());
+      allow list: if resource.data.published == true || isBootstrappedAdmin();
+      allow create: if isValidId(postId) && isAdmin() && isValidBlogPost(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(postId) && isAdmin() && isValidBlogPost(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'title',
+          'slug',
+          'category',
+          'excerpt',
+          'content',
+          'authorName',
+          'coverImageUrl',
+          'readTime',
+          'published',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(postId) && isAdmin();
+    }
+
+    // 4. Push Subscriptions (Public can save/remove own hashed endpoint doc; Admin reads stats)
+    match /pushSubscriptions/{subId} {
+      allow get: if isValidId(subId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(subId) && subId.size() >= 32 && isValidPushSubscription(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(subId) && subId.size() >= 32 && isValidPushSubscription(incoming()) &&
+        incoming().endpoint == existing().endpoint &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['p256dh', 'auth', 'topics', 'updatedAt']);
+      allow delete: if isValidId(subId) && (isAdmin() || subId.size() >= 32);
+    }
+
+    // 5. Admins Allowlist (Bootstrap admin only)
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && (isBootstrappedAdmin() || (isVerifiedUser() && request.auth.uid == uid));
+      allow list, create, update, delete: if isBootstrappedAdmin();
+    }
+
+    // 6. Startup Connection Check Document
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+    }
+  }
+}

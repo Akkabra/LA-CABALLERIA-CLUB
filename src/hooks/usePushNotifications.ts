@@ -1,10 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
+import { doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 export type PushTopic = 'disponibilidad' | 'eventos' | 'recordatorios';
 
 const PUSH_TOPICS_STORAGE_KEY = 'lc_push_topics';
 const PUSH_SYNC_EVENT = 'lc:push-sync';
 const DEFAULT_TOPICS: PushTopic[] = ['disponibilidad', 'eventos', 'recordatorios'];
+
+async function hashEndpointId(endpoint: string): Promise<string> {
+  const bytes = new TextEncoder().encode(endpoint);
+  const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -50,6 +60,60 @@ function broadcastPushSync(isSubscribed: boolean, topics: PushTopic[]): void {
     );
   } catch {
     // Ignore event errors
+  }
+}
+
+async function savePushSubscriptionToFirestore(
+  subJson: PushSubscriptionJSON,
+  topics: PushTopic[]
+): Promise<void> {
+  const endpoint = subJson.endpoint?.trim();
+  const p256dh = subJson.keys?.p256dh?.trim();
+  const authKey = subJson.keys?.auth?.trim();
+  if (!endpoint || !p256dh || !authKey) return;
+
+  const subId = await hashEndpointId(endpoint);
+  const ref = doc(db, 'pushSubscriptions', subId);
+  const path = `pushSubscriptions/${subId}`;
+
+  try {
+    await updateDoc(ref, {
+      p256dh: p256dh.slice(0, 300),
+      auth: authKey.slice(0, 120),
+      topics: topics.slice(0, 3),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (updateErr: unknown) {
+    const code =
+      typeof updateErr === 'object' && updateErr !== null && 'code' in updateErr
+        ? String((updateErr as { code?: string }).code)
+        : '';
+    if (code === 'not-found') {
+      try {
+        await setDoc(ref, {
+          endpoint: endpoint.slice(0, 1000),
+          p256dh: p256dh.slice(0, 300),
+          auth: authKey.slice(0, 120),
+          topics: topics.slice(0, 3),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } catch (createErr) {
+        handleFirestoreError(createErr, OperationType.CREATE, path);
+      }
+    } else {
+      handleFirestoreError(updateErr, OperationType.UPDATE, path);
+    }
+  }
+}
+
+async function deletePushSubscriptionFromFirestore(endpoint: string): Promise<void> {
+  const subId = await hashEndpointId(endpoint);
+  const path = `pushSubscriptions/${subId}`;
+  try {
+    await deleteDoc(doc(db, 'pushSubscriptions', subId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
   }
 }
 
@@ -173,25 +237,24 @@ export function usePushNotifications() {
         });
       }
 
-      const subRes = await fetch('/api/push/subscribe', {
+      const subJson = subscription.toJSON();
+
+      // Persist in Firestore + register on server cache
+      await savePushSubscriptionToFirestore(subJson, sanitizedTopics);
+      await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subscription: subscription.toJSON(),
+          subscription: subJson,
           topics: sanitizedTopics,
         }),
-      });
-
-      if (!subRes.ok) {
-        const errData = (await subRes.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errData.error || 'No se pudo guardar la suscripción en el servidor.');
-      }
+      }).catch(() => {});
 
       saveStoredTopics(sanitizedTopics);
       setTopics(sanitizedTopics);
       setIsSubscribed(true);
       broadcastPushSync(true, sanitizedTopics);
-      setFeedback('Suscripción y preferencias guardadas en este dispositivo.');
+      setFeedback('Suscripción y preferencias guardadas de forma permanente.');
       return true;
     } catch (err) {
       const msg =
@@ -241,6 +304,7 @@ export function usePushNotifications() {
       const subscription = reg ? await reg.pushManager.getSubscription() : null;
 
       if (subscription) {
+        await deletePushSubscriptionFromFirestore(subscription.endpoint).catch(() => {});
         await fetch('/api/push/unsubscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -262,7 +326,7 @@ export function usePushNotifications() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [topics]);
 
   return {
     isSupported,

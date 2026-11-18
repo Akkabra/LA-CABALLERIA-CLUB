@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   APIProvider,
   Map as GoogleMap,
@@ -17,9 +17,7 @@ import {
   Minus,
   Crosshair,
   Layers,
-  ExternalLink,
   Navigation,
-  AlertTriangle,
 } from 'lucide-react';
 import { CLUB_INFO } from '../data/clubData';
 
@@ -31,6 +29,153 @@ const MAPS_API_KEY =
 const DEFAULT_CLUB_CENTER: { lat: number; lng: number } = {
   lat: 40.416775,
   lng: -3.70379,
+};
+
+interface MapStyleControlsProps {
+  mapType: 'roadmap' | 'hybrid';
+  onChangeMapType: (type: 'roadmap' | 'hybrid') => void;
+}
+
+const MapStyleControls: React.FC<MapStyleControlsProps> = ({ mapType, onChangeMapType }) => (
+  <div className="absolute top-3 left-3 z-10 flex items-center bg-[#141416]/95 backdrop-blur-md border border-white/15 p-1 shadow-xl">
+    <button
+      type="button"
+      onClick={() => onChangeMapType('roadmap')}
+      className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+        mapType === 'roadmap'
+          ? 'bg-[#D21923] text-white'
+          : 'text-zinc-300 hover:text-white'
+      }`}
+    >
+      <Layers className="w-3.5 h-3.5" />
+      <span>Oscuro</span>
+    </button>
+    <button
+      type="button"
+      onClick={() => onChangeMapType('hybrid')}
+      className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
+        mapType === 'hybrid'
+          ? 'bg-[#D21923] text-white'
+          : 'text-zinc-300 hover:text-white'
+      }`}
+    >
+      <span>Satélite</span>
+    </button>
+  </div>
+);
+
+interface KeylessInteractiveMapProps {
+  mapType: 'roadmap' | 'hybrid';
+  onChangeMapType: (type: 'roadmap' | 'hybrid') => void;
+}
+
+const KeylessInteractiveMap: React.FC<KeylessInteractiveMapProps> = ({
+  mapType,
+  onChangeMapType,
+}) => {
+  const [zoomLevel, setZoomLevel] = useState(14);
+  const [recenterNonce, setRecenterNonce] = useState(0);
+  const [isFrameLoaded, setIsFrameLoaded] = useState(false);
+
+  const embedMode = mapType === 'hybrid' ? 'h' : 'm';
+  const embedSrc = `https://maps.google.com/maps?q=${DEFAULT_CLUB_CENTER.lat},${DEFAULT_CLUB_CENTER.lng}&hl=es&z=${zoomLevel}&t=${embedMode}&output=embed&center_nonce=${recenterNonce}`;
+
+  useEffect(() => {
+    setIsFrameLoaded(false);
+  }, [embedSrc]);
+
+  const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 1, 20));
+  const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 1, 4));
+  const handleRecenter = () => {
+    setZoomLevel(14);
+    setRecenterNonce((n) => n + 1);
+  };
+
+  return (
+    <div className="relative w-full h-full bg-[#141416] overflow-hidden">
+      {!isFrameLoaded && (
+        <div className="absolute inset-0 z-20 bg-[#141416] flex flex-col items-center justify-center gap-3 pointer-events-none">
+          <div className="w-8 h-8 border-2 border-white/15 border-t-[#D21923] rounded-full animate-spin" />
+          <span className="text-xs uppercase tracking-widest text-zinc-400">
+            Cargando mapa del club...
+          </span>
+        </div>
+      )}
+
+      <iframe
+        title="Mapa interactivo de La Caballería"
+        src={embedSrc}
+        onLoad={() => setIsFrameLoaded(true)}
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        className="w-full h-full border-0 transition-[filter] duration-300"
+        style={
+          mapType === 'roadmap'
+            ? { filter: 'invert(90%) hue-rotate(180deg) contrast(95%) grayscale(15%)' }
+            : undefined
+        }
+        allowFullScreen
+      />
+
+      <MapStyleControls mapType={mapType} onChangeMapType={onChangeMapType} />
+
+      {/* Top-Right Zoom & Recenter Controls */}
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={handleZoomIn}
+          className="w-10 h-10 bg-[#141416]/95 hover:bg-[#D21923] text-white border border-white/15 hover:border-[#D21923] flex items-center justify-center transition-colors shadow-xl cursor-pointer"
+          aria-label="Acercar mapa"
+          title="Acercar"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={handleZoomOut}
+          className="w-10 h-10 bg-[#141416]/95 hover:bg-[#D21923] text-white border border-white/15 hover:border-[#D21923] flex items-center justify-center transition-colors shadow-xl cursor-pointer"
+          aria-label="Alejar mapa"
+          title="Alejar"
+        >
+          <Minus className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={handleRecenter}
+          className="w-10 h-10 bg-[#141416]/95 hover:bg-[#D21923] text-white border border-white/15 hover:border-[#D21923] flex items-center justify-center transition-colors shadow-xl cursor-pointer group"
+          aria-label="Centrar en el club"
+          title="Centrar ubicación del club"
+        >
+          <Crosshair className="w-4 h-4 text-[#D21923] group-hover:text-white transition-colors" />
+        </button>
+      </div>
+
+      {/* Bottom-Left Club Reference Card */}
+      <div className="hidden sm:block absolute bottom-3 left-3 z-10 max-w-[260px] bg-[#141416]/95 backdrop-blur-md border border-white/15 p-3 shadow-2xl">
+        <div className="flex items-center gap-2 pb-1.5 mb-1.5 border-b border-white/10">
+          <span className="w-2 h-2 bg-[#D21923] inline-block shrink-0" />
+          <span className="text-xs font-bold uppercase tracking-wider text-white">
+            {CLUB_INFO.name}
+          </span>
+        </div>
+        <p className="text-[11px] font-semibold text-[#D21923] mb-1">
+          {CLUB_INFO.descriptor}
+        </p>
+        <p className="text-[11px] text-zinc-400 leading-snug mb-2">
+          Zona referencial del club. Dirección exacta confirmada al agendar tu cita.
+        </p>
+        <a
+          href={`https://www.google.com/maps/dir/?api=1&destination=${DEFAULT_CLUB_CENTER.lat},${DEFAULT_CLUB_CENTER.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white hover:text-[#D21923] transition-colors"
+        >
+          <Navigation className="w-3 h-3 text-[#D21923]" />
+          <span>Cómo llegar</span>
+        </a>
+      </div>
+    </div>
+  );
 };
 
 interface MapCanvasProps {
@@ -71,26 +216,7 @@ const MapCanvas: React.FC<MapCanvasProps> = ({ mapType, onChangeMapType }) => {
   }, [map]);
 
   if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) {
-    return (
-      <div className="w-full h-full bg-[#141416] flex flex-col items-center justify-center p-6 text-center">
-        <AlertTriangle className="w-8 h-8 text-[#D21923] mb-3" />
-        <p className="text-sm font-serif font-bold text-white mb-1">
-          No se pudo cargar el mapa interactivo
-        </p>
-        <p className="text-xs text-zinc-400 max-w-md mb-4">
-          Verifica la configuración de acceso o consulta la ubicación directamente en Google Maps.
-        </p>
-        <a
-          href={`https://www.google.com/maps/search/?api=1&query=${DEFAULT_CLUB_CENTER.lat},${DEFAULT_CLUB_CENTER.lng}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          <span>Abrir en Google Maps</span>
-        </a>
-      </div>
-    );
+    return <KeylessInteractiveMap mapType={mapType} onChangeMapType={onChangeMapType} />;
   }
 
   return (
@@ -181,31 +307,7 @@ const MapCanvas: React.FC<MapCanvasProps> = ({ mapType, onChangeMapType }) => {
       </GoogleMap>
 
       {/* Custom Top-Left Controls: Map Style Mode */}
-      <div className="absolute top-3 left-3 z-10 flex items-center bg-[#141416]/95 backdrop-blur-md border border-white/15 p-1 shadow-xl">
-        <button
-          type="button"
-          onClick={() => onChangeMapType('roadmap')}
-          className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-            mapType === 'roadmap'
-              ? 'bg-[#D21923] text-white'
-              : 'text-zinc-300 hover:text-white'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Oscuro</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onChangeMapType('hybrid')}
-          className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
-            mapType === 'hybrid'
-              ? 'bg-[#D21923] text-white'
-              : 'text-zinc-300 hover:text-white'
-          }`}
-        >
-          <span>Satélite</span>
-        </button>
-      </div>
+      <MapStyleControls mapType={mapType} onChangeMapType={onChangeMapType} />
 
       {/* Custom Top-Right Controls: Zoom & Recenter */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5">
@@ -230,11 +332,11 @@ const MapCanvas: React.FC<MapCanvasProps> = ({ mapType, onChangeMapType }) => {
         <button
           type="button"
           onClick={handleRecenter}
-          className="w-10 h-10 bg-[#141416]/95 hover:bg-[#D21923] text-white border border-white/15 hover:border-[#D21923] flex items-center justify-center transition-colors shadow-xl cursor-pointer"
+          className="w-10 h-10 bg-[#141416]/95 hover:bg-[#D21923] text-white border border-white/15 hover:border-[#D21923] flex items-center justify-center transition-colors shadow-xl cursor-pointer group"
           aria-label="Centrar en el club"
           title="Centrar ubicación del club"
         >
-          <Crosshair className="w-4 h-4 text-[#D21923] group-hover:text-white" />
+          <Crosshair className="w-4 h-4 text-[#D21923] group-hover:text-white transition-colors" />
         </button>
       </div>
     </div>
@@ -287,24 +389,7 @@ export const ClubLocationMap: React.FC = () => {
             <MapCanvas mapType={mapType} onChangeMapType={setMapType} />
           </APIProvider>
         ) : (
-          <div className="w-full h-full bg-[#141416] flex flex-col items-center justify-center p-6 text-center">
-            <MapPin className="w-8 h-8 text-[#D21923] mb-3" />
-            <p className="text-sm font-serif font-bold text-white mb-1">
-              Mapa interactivo en espera de clave de configuración
-            </p>
-            <p className="text-xs text-zinc-400 max-w-md mb-4">
-              La ubicación oficial del club se mostrará aquí una vez configurada la clave de Google Maps.
-            </p>
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${DEFAULT_CLUB_CENTER.lat},${DEFAULT_CLUB_CENTER.lng}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Ver en Google Maps</span>
-            </a>
-          </div>
+          <KeylessInteractiveMap mapType={mapType} onChangeMapType={setMapType} />
         )}
       </div>
 

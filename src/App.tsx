@@ -40,6 +40,7 @@ export default function App() {
     isLoadingBookings,
     isLoadingBlog,
     isAdminAuthenticated,
+    adminEmail,
     isCheckingAuth,
     isConnected: isRealtimeConnected,
     pushStats,
@@ -258,6 +259,7 @@ export default function App() {
         isOpen={isAdminDrawerOpen}
         onClose={() => setIsAdminDrawerOpen(false)}
         isAdminAuthenticated={isAdminAuthenticated}
+        adminEmail={adminEmail}
         isCheckingAuth={isCheckingAuth}
         onLoginAdmin={loginAdmin}
         onLogoutAdmin={logoutAdmin}

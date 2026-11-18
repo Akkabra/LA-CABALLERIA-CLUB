@@ -1,12 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import type { BlogCategory, BlogPost } from '../src/types';
+import { getWritableDataDir } from './storageDir';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, '..');
-const DATA_DIR = path.join(ROOT_DIR, '.data');
+const DATA_DIR = getWritableDataDir();
 const BLOG_FILE = path.join(DATA_DIR, 'blog-posts.json');
 
 const SEED_POSTS: BlogPost[] = [
@@ -64,8 +61,12 @@ const SEED_POSTS: BlogPost[] = [
 ];
 
 function ensureDataDir(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch {
+    // Fallback to in-memory store if directory cannot be created
   }
 }
 
@@ -91,7 +92,11 @@ function loadBlogPosts(): BlogPost[] {
   try {
     ensureDataDir();
     if (!fs.existsSync(BLOG_FILE)) {
-      fs.writeFileSync(BLOG_FILE, JSON.stringify(SEED_POSTS, null, 2), 'utf-8');
+      try {
+        fs.writeFileSync(BLOG_FILE, JSON.stringify(SEED_POSTS, null, 2), 'utf-8');
+      } catch {
+        // Ignore write failures in constrained environments
+      }
       return [...SEED_POSTS];
     }
     const raw = fs.readFileSync(BLOG_FILE, 'utf-8');

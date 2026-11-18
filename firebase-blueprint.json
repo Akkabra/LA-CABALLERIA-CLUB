@@ -1,0 +1,375 @@
+{
+  "entities": {
+    "Booking": {
+      "title": "Booking",
+      "description": "Reserva de clase o cita ecuestre registrada por un alumno o familia.",
+      "type": "object",
+      "properties": {
+        "bookingCode": {
+          "type": "string",
+          "description": "Código público de confirmación (ej. LC-123456).",
+          "minLength": 4,
+          "maxLength": 24,
+          "pattern": "^LC-[0-9]{6}$"
+        },
+        "classTypeId": {
+          "type": "string",
+          "description": "Identificador de la modalidad de clase.",
+          "minLength": 2,
+          "maxLength": 60,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "classTypeName": {
+          "type": "string",
+          "description": "Nombre legible de la clase reservada.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "instructorId": {
+          "type": "string",
+          "description": "Identificador del instructor seleccionado o inst-cualquiera.",
+          "minLength": 2,
+          "maxLength": 60,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "instructorName": {
+          "type": "string",
+          "description": "Nombre del instructor asignado.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "date": {
+          "type": "string",
+          "description": "Fecha de la cita en formato YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "formattedDate": {
+          "type": "string",
+          "description": "Fecha formateada en español.",
+          "minLength": 4,
+          "maxLength": 80
+        },
+        "timeSlot": {
+          "type": "string",
+          "description": "Franja horaria en formato HH:MM.",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "slotId": {
+          "type": "string",
+          "description": "Identificador del documento de bloqueo de horario en occupiedSlots.",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Nombre completo del alumno.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "studentAge": {
+          "type": "string",
+          "description": "Edad declarada del alumno.",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "guardianName": {
+          "type": "string",
+          "description": "Nombre del padre, madre o tutor si aplica.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "description": "Teléfono o WhatsApp de contacto.",
+          "minLength": 5,
+          "maxLength": 40
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Correo electrónico del solicitante.",
+          "minLength": 5,
+          "maxLength": 160
+        },
+        "experienceLevel": {
+          "type": "string",
+          "description": "Nivel de experiencia previo declarado.",
+          "enum": [
+            "Sin experiencia (Primera vez)",
+            "Poco conocimiento",
+            "Nivel intermedio",
+            "Avanzado"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Observaciones o comentarios adicionales.",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "status": {
+          "type": "string",
+          "description": "Estado actual de la reserva.",
+          "enum": ["confirmada", "solicitada", "cancelada"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca temporal de creación validada por el servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca temporal de última actualización validada por el servidor."
+        }
+      },
+      "required": [
+        "bookingCode",
+        "classTypeId",
+        "classTypeName",
+        "instructorId",
+        "instructorName",
+        "date",
+        "formattedDate",
+        "timeSlot",
+        "slotId",
+        "studentName",
+        "studentAge",
+        "guardianName",
+        "phone",
+        "email",
+        "experienceLevel",
+        "notes",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OccupiedSlot": {
+      "title": "OccupiedSlot",
+      "description": "Índice público anonimizado de franjas horarias reservadas por instructor.",
+      "type": "object",
+      "properties": {
+        "bookingId": {
+          "type": "string",
+          "description": "ID de la reserva asociada.",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "description": "Fecha YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "timeSlot": {
+          "type": "string",
+          "description": "Horario HH:MM.",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "instructorId": {
+          "type": "string",
+          "description": "Identificador del instructor bloqueado.",
+          "minLength": 2,
+          "maxLength": 60,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca temporal de bloqueo validada por el servidor."
+        }
+      },
+      "required": ["bookingId", "date", "timeSlot", "instructorId", "createdAt"]
+    },
+    "BlogPost": {
+      "title": "BlogPost",
+      "description": "Artículo editorial del blog institucional del club.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Título del artículo.",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "slug": {
+          "type": "string",
+          "description": "Identificador legible para URL.",
+          "minLength": 3,
+          "maxLength": 120,
+          "pattern": "^[a-z0-9\\-]+$"
+        },
+        "category": {
+          "type": "string",
+          "description": "Categoría temática del artículo.",
+          "enum": [
+            "cuidado-equino",
+            "consejos-principiantes",
+            "noticias-club"
+          ]
+        },
+        "excerpt": {
+          "type": "string",
+          "description": "Resumen breve mostrado en la tarjeta.",
+          "minLength": 10,
+          "maxLength": 400
+        },
+        "content": {
+          "type": "string",
+          "description": "Contenido completo del artículo.",
+          "minLength": 20,
+          "maxLength": 15000
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Nombre del autor o equipo editorial.",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "coverImageUrl": {
+          "type": "string",
+          "description": "URL de la fotografía de portada.",
+          "minLength": 8,
+          "maxLength": 500
+        },
+        "readTime": {
+          "type": "string",
+          "description": "Tiempo estimado de lectura.",
+          "minLength": 2,
+          "maxLength": 30
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Indica si el artículo es visible públicamente."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca temporal de creación."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca temporal de actualización."
+        }
+      },
+      "required": [
+        "title",
+        "slug",
+        "category",
+        "excerpt",
+        "content",
+        "authorName",
+        "coverImageUrl",
+        "readTime",
+        "published",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PushSubscription": {
+      "title": "PushSubscription",
+      "description": "Suscripción Web Push y temas seleccionados por un visitante.",
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "Endpoint Push del navegador.",
+          "minLength": 10,
+          "maxLength": 1000
+        },
+        "p256dh": {
+          "type": "string",
+          "description": "Clave pública P-256 del suscriptor.",
+          "minLength": 10,
+          "maxLength": 300
+        },
+        "auth": {
+          "type": "string",
+          "description": "Secreto de autenticación Web Push.",
+          "minLength": 6,
+          "maxLength": 120
+        },
+        "topics": {
+          "type": "array",
+          "description": "Temas activos de notificación (1 a 3 elementos)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["endpoint", "p256dh", "auth", "topics", "createdAt", "updatedAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Registro de administradores autorizados en el club.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "role", "createdAt"]
+    },
+    "ConnectionCheck": {
+      "title": "ConnectionCheck",
+      "description": "Documento de verificación de conectividad inicial.",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Citas agendadas con datos de alumnos y tutores (PII restringida al administrador)."
+    },
+    "/occupiedSlots/{slotId}": {
+      "schema": { "$ref": "#/entities/OccupiedSlot" },
+      "description": "Bloqueos públicos anonimizados de franjas horarias por instructor."
+    },
+    "/blogPosts/{postId}": {
+      "schema": { "$ref": "#/entities/BlogPost" },
+      "description": "Artículos del blog del club."
+    },
+    "/pushSubscriptions/{subId}": {
+      "schema": { "$ref": "#/entities/PushSubscription" },
+      "description": "Preferencias y endpoints de notificaciones Web Push."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Lista opcional de UIDs administrativos autorizados."
+    },
+    "/test/{docId}": {
+      "schema": { "$ref": "#/entities/ConnectionCheck" },
+      "description": "Comprobación de conexión inicial con getDocFromServer."
+    }
+  }
+}

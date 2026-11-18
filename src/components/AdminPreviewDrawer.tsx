@@ -7,8 +7,6 @@ import {
   Shield,
   Lock,
   LogOut,
-  Eye,
-  EyeOff,
   CalendarCheck,
   Sliders,
   AlertCircle,
@@ -47,8 +45,9 @@ interface AdminPreviewDrawerProps {
   onClose: () => void;
   // Auth
   isAdminAuthenticated: boolean;
+  adminEmail?: string | null;
   isCheckingAuth: boolean;
-  onLoginAdmin: (password: string) => Promise<void>;
+  onLoginAdmin: () => Promise<void>;
   onLogoutAdmin: () => Promise<void>;
   // Real-time bookings (only populated when authenticated)
   bookings: AppointmentBooking[];
@@ -96,6 +95,7 @@ export const AdminPreviewDrawer: React.FC<AdminPreviewDrawerProps> = ({
   isOpen,
   onClose,
   isAdminAuthenticated,
+  adminEmail,
   isCheckingAuth,
   onLoginAdmin,
   onLogoutAdmin,
@@ -119,9 +119,7 @@ export const AdminPreviewDrawer: React.FC<AdminPreviewDrawerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'citas' | 'blog' | 'difusion' | 'plantel'>('citas');
 
-  // Login form state
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  // Auth state
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -185,18 +183,11 @@ export const AdminPreviewDrawer: React.FC<AdminPreviewDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setLoginError(null);
-    if (!password.trim()) {
-      setLoginError('Ingresa la contraseña de administrador.');
-      return;
-    }
-
     setIsLoggingIn(true);
     try {
-      await onLoginAdmin(password);
-      setPassword('');
+      await onLoginAdmin();
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
     } finally {
@@ -552,7 +543,7 @@ export const AdminPreviewDrawer: React.FC<AdminPreviewDrawerProps> = ({
                 </h3>
                 <span className="text-[11px] text-zinc-400 block truncate">
                   {isAdminAuthenticated
-                    ? 'Sesión autorizada · Gestión privada de citas y plantel'
+                    ? `Sesión activa${adminEmail ? ` (${adminEmail})` : ''} · Base de datos Firebase`
                     : 'Acceso exclusivo para dirección e instructores'}
                 </span>
               </div>
@@ -599,61 +590,33 @@ export const AdminPreviewDrawer: React.FC<AdminPreviewDrawerProps> = ({
                   Acceso Restringido al Administrador
                 </h4>
                 <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed mb-6">
-                  Por privacidad de nuestros alumnos y familias, la agenda de citas asignadas en tiempo real y los controles del club solo están disponibles mediante autenticación administrativa.
+                  Por privacidad de nuestros alumnos y familias, la agenda de citas en tiempo real y la edición del blog se protegen mediante tu cuenta Google autorizada del club (<span className="text-zinc-200 font-mono">bryanalvarez119@gmail.com</span>).
                 </p>
 
-                <form onSubmit={handleLoginSubmit} className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="admin-password-input"
-                      className="block text-xs uppercase tracking-wider text-zinc-300 font-semibold mb-1.5"
-                    >
-                      Contraseña de Administrador
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="admin-password-input"
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          if (loginError) setLoginError(null);
-                        }}
-                        placeholder="Ingresa tu clave de acceso"
-                        autoFocus
-                        className="w-full px-4 py-3 pr-11 min-h-[46px] bg-[#141416] border border-white/15 text-white text-base sm:text-sm focus:outline-none focus:border-[#D21923]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center"
-                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
+                <div className="space-y-4">
                   {loginError && (
-                    <div className="p-3 bg-[#D21923]/15 border border-[#D21923] text-xs text-white flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-[#D21923] shrink-0" />
+                    <div className="p-3 bg-[#D21923]/15 border border-[#D21923] text-xs text-white flex items-start gap-2 leading-relaxed">
+                      <AlertCircle className="w-4 h-4 text-[#D21923] shrink-0 mt-0.5" />
                       <span>{loginError}</span>
                     </div>
                   )}
 
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleGoogleLogin}
                     disabled={isLoggingIn}
-                    className="w-full min-h-[46px] inline-flex items-center justify-center gap-2 py-3 px-5 text-xs font-bold uppercase tracking-widest text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors disabled:opacity-50"
+                    className="w-full min-h-[48px] inline-flex items-center justify-center gap-3 py-3 px-5 text-xs font-bold uppercase tracking-widest text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors disabled:opacity-50 cursor-pointer shadow-lg shadow-[#D21923]/20"
                   >
                     {isLoggingIn ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Lock className="w-4 h-4" />
+                      <Shield className="w-4 h-4" />
                     )}
-                    <span>{isLoggingIn ? 'VERIFICANDO...' : 'INGRESAR AL PANEL'}</span>
+                    <span>
+                      {isLoggingIn ? 'AUTENTICANDO...' : 'CONTINUAR CON GOOGLE (ADMIN)'}
+                    </span>
                   </button>
-                </form>
+                </div>
               </div>
             </div>
           ) : (

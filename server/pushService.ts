@@ -1,12 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import * as webpush from 'web-push';
+import { getWritableDataDir } from './storageDir';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, '..');
-const DATA_DIR = path.join(ROOT_DIR, '.data');
+const DATA_DIR = getWritableDataDir();
 const VAPID_FILE = path.join(DATA_DIR, 'vapid.json');
 const SUBSCRIPTIONS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
 
@@ -31,8 +28,12 @@ interface VapidConfig {
 }
 
 function ensureDataDir(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch {
+    // Fallback gracefully in read-only filesystems
   }
 }
 
@@ -46,8 +47,8 @@ function getOrCreateVapidConfig(): VapidConfig {
   }
 
   ensureDataDir();
-  if (fs.existsSync(VAPID_FILE)) {
-    try {
+  try {
+    if (fs.existsSync(VAPID_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(VAPID_FILE, 'utf-8')) as Partial<VapidConfig>;
       if (parsed.publicKey && parsed.privateKey) {
         return {
@@ -56,9 +57,9 @@ function getOrCreateVapidConfig(): VapidConfig {
           subject: parsed.subject || subject,
         };
       }
-    } catch {
-      // Regenerate below if corrupted
     }
+  } catch {
+    // Regenerate below if unavailable or corrupted
   }
 
   const generated = webpush.generateVAPIDKeys();
@@ -67,18 +68,30 @@ function getOrCreateVapidConfig(): VapidConfig {
     privateKey: generated.privateKey,
     subject,
   };
-  fs.writeFileSync(VAPID_FILE, JSON.stringify(config, null, 2), 'utf-8');
+  try {
+    fs.writeFileSync(VAPID_FILE, JSON.stringify(config, null, 2), 'utf-8');
+  } catch {
+    // Ignore disk write failure on serverless/read-only environments
+  }
   return config;
 }
 
 const vapidConfig = getOrCreateVapidConfig();
-webpush.setVapidDetails(vapidConfig.subject, vapidConfig.publicKey, vapidConfig.privateKey);
+try {
+  webpush.setVapidDetails(vapidConfig.subject, vapidConfig.publicKey, vapidConfig.privateKey);
+} catch (err) {
+  console.error('Error initializing VAPID details:', err);
+}
 
 function loadSubscriptions(): StoredPushSubscription[] {
   try {
     ensureDataDir();
     if (!fs.existsSync(SUBSCRIPTIONS_FILE)) {
-      fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify([], null, 2), 'utf-8');
+      try {
+        fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify([], null, 2), 'utf-8');
+      } catch {
+        // Ignore write failures
+      }
       return [];
     }
     const raw = fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8');
@@ -90,8 +103,12 @@ function loadSubscriptions(): StoredPushSubscription[] {
 }
 
 function saveSubscriptions(subs: StoredPushSubscription[]): void {
-  ensureDataDir();
-  fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(subs, null, 2), 'utf-8');
+  try {
+    ensureDataDir();
+    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(subs, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error writing push subscriptions:', err);
+  }
 }
 
 let subscriptionsStore: StoredPushSubscription[] = loadSubscriptions();
@@ -181,11 +198,33 @@ export async function broadcastPushNotification(params: {
   topic: PushTopic | 'todos';
   url?: string;
   tag?: string;
+  extraSubscriptions?: Array<{
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+    topics: PushTopic[];
+  }>;
 }): Promise<{ sent: number; failed: number; removed: number }> {
+  const byEndpoint = new Map<
+    string,
+    { endpoint: string; keys: { p256dh: string; auth: string }; topics: PushTopic[] }
+  >();
+
+  for (const sub of subscriptionsStore) {
+    byEndpoint.set(sub.endpoint, sub);
+  }
+  if (Array.isArray(params.extraSubscriptions)) {
+    for (const sub of params.extraSubscriptions) {
+      if (sub?.endpoint && sub?.keys?.p256dh && sub?.keys?.auth) {
+        byEndpoint.set(sub.endpoint, sub);
+      }
+    }
+  }
+
+  const combined = Array.from(byEndpoint.values());
   const targets =
     params.topic === 'todos'
-      ? subscriptionsStore
-      : subscriptionsStore.filter((s) => s.topics.includes(params.topic as PushTopic));
+      ? combined
+      : combined.filter((s) => s.topics.includes(params.topic as PushTopic));
 
   if (targets.length === 0) {
     return { sent: 0, failed: 0, removed: 0 };
