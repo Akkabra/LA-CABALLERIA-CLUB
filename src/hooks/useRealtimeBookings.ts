@@ -100,7 +100,10 @@ function toIsoString(val: unknown): string {
 
 function buildSlotId(date: string, timeSlot: string, instructorId: string): string {
   if (!instructorId || instructorId === 'inst-cualquiera') return '';
-  return `${date}__${timeSlot.replace(':', '-')}__${instructorId}`.slice(0, 100);
+  const safeDate = date.trim().slice(0, 10).replace(/[^a-zA-Z0-9_-]/g, '-');
+  const safeTime = timeSlot.trim().slice(0, 5).replace(/[^a-zA-Z0-9_-]/g, '-');
+  const safeInstructor = instructorId.trim().replace(/[^a-zA-Z0-9_-]/g, '-');
+  return `${safeDate}__${safeTime}__${safeInstructor}`.slice(0, 100);
 }
 
 function slugify(input: string): string {
@@ -464,11 +467,15 @@ export function useRealtimeBookings() {
         throw new Error('Por favor completa todos los campos obligatorios correctamente.');
       }
 
+      const normalizedDate = payload.date.trim().slice(0, 10);
+      const normalizedTimeSlot = payload.timeSlot.trim().slice(0, 5);
+      const normalizedInstructorId = payload.instructorId.trim().slice(0, 60);
+
       const bookingId = `booking-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const bookingCode = `LC-${Math.floor(100000 + Math.random() * 900000)}`;
-      const slotId = buildSlotId(payload.date, payload.timeSlot, payload.instructorId);
+      const slotId = buildSlotId(normalizedDate, normalizedTimeSlot, normalizedInstructorId);
       const status: AppointmentBooking['status'] =
-        payload.instructorId === 'inst-cualquiera' ? 'solicitada' : 'confirmada';
+        normalizedInstructorId === 'inst-cualquiera' ? 'solicitada' : 'confirmada';
 
       if (slotId) {
         try {
@@ -491,13 +498,13 @@ export function useRealtimeBookings() {
 
       const firestoreBookingDoc = {
         bookingCode,
-        classTypeId: payload.classTypeId.slice(0, 60),
-        classTypeName: payload.classTypeName.slice(0, 120),
-        instructorId: payload.instructorId.slice(0, 60),
-        instructorName: payload.instructorName.slice(0, 120),
-        date: payload.date.slice(0, 10),
-        formattedDate: payload.formattedDate.slice(0, 80),
-        timeSlot: payload.timeSlot.slice(0, 5),
+        classTypeId: payload.classTypeId.trim().slice(0, 60),
+        classTypeName: payload.classTypeName.trim().slice(0, 120),
+        instructorId: normalizedInstructorId,
+        instructorName: payload.instructorName.trim().slice(0, 120),
+        date: normalizedDate,
+        formattedDate: payload.formattedDate.trim().slice(0, 80),
+        timeSlot: normalizedTimeSlot,
         slotId,
         studentName,
         studentAge,
@@ -516,9 +523,9 @@ export function useRealtimeBookings() {
       if (slotId) {
         batch.set(doc(db, 'occupiedSlots', slotId), {
           bookingId,
-          date: payload.date.slice(0, 10),
-          timeSlot: payload.timeSlot.slice(0, 5),
-          instructorId: payload.instructorId.slice(0, 60),
+          date: normalizedDate,
+          timeSlot: normalizedTimeSlot,
+          instructorId: normalizedInstructorId,
           createdAt: serverTimestamp(),
         });
       }
@@ -595,8 +602,8 @@ export function useRealtimeBookings() {
           if (existingLock && !existingLock.exists()) {
             batch.set(doc(db, 'occupiedSlots', slotId), {
               bookingId: id,
-              date: existing.date,
-              timeSlot: existing.timeSlot,
+              date: existing.date.slice(0, 10),
+              timeSlot: existing.timeSlot.slice(0, 5),
               instructorId: existing.instructorId,
               createdAt: serverTimestamp(),
             });

@@ -44,6 +44,7 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
   const [instructorFilter, setInstructorFilter] = useState<string>('todos');
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const isExternallyControlledSearch = externalSearchTerm !== undefined;
@@ -95,6 +96,7 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
     setActionError(null);
     try {
       await onDeleteBooking(id);
+      setConfirmDeleteId(null);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Error al eliminar la cita.');
     } finally {
@@ -188,9 +190,9 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
       </div>
 
       {/* Filters Toolbar */}
-      <div className="bg-[#1A1A1D] border border-white/10 p-4 mb-6 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      <div className="bg-[#1A1A1D] border border-white/10 p-3.5 sm:p-4 mb-6 flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
         {/* Status Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
           {(
             [
               { id: 'todas', label: 'Todas' },
@@ -205,7 +207,7 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setStatusFilter(tab.id)}
-                className={`px-3.5 py-2 min-h-[38px] text-[11px] font-semibold uppercase tracking-wider transition-colors border ${
+                className={`px-3 py-2 min-h-[42px] text-[11px] font-semibold uppercase tracking-wider transition-colors border text-center whitespace-nowrap ${
                   active
                     ? 'bg-[#D21923] border-[#D21923] text-white'
                     : 'bg-[#141416] border-white/10 text-zinc-400 hover:text-white hover:border-white/25'
@@ -290,6 +292,7 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
             {filteredBookings.map((booking) => {
               const isBusy = busyId === booking.id;
               const isCancelled = booking.status === 'cancelada';
+              const isConfirmingDelete = confirmDeleteId === booking.id;
 
               return (
                 <motion.article
@@ -397,19 +400,43 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
                   </div>
 
                   {/* Actions */}
-                  <div className="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
+                  {isConfirmingDelete ? (
+                    <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#D21923]/10 p-2.5 border border-[#D21923]/40">
+                      <span className="text-[11px] text-white font-medium">
+                        ¿Eliminar cita?
+                      </span>
+                      <div className="grid grid-cols-2 sm:flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleDelete(booking.id)}
+                          className="min-h-[40px] px-3 py-2 text-[11px] font-bold uppercase tracking-wider bg-[#D21923] hover:bg-[#b8141d] text-white transition-colors disabled:opacity-50"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="min-h-[40px] px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-zinc-200 transition-colors"
+                        >
+                          Volver
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="pt-3 border-t border-white/10 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
                       {booking.status !== 'confirmada' && (
                         <button
                           type="button"
                           disabled={isBusy}
                           onClick={() => handleStatusChange(booking.id, 'confirmada')}
-                          className="inline-flex items-center gap-1 px-3 py-2 min-h-[38px] text-[11px] font-semibold uppercase tracking-wider bg-[#D21923] hover:bg-[#b8141d] text-white transition-colors disabled:opacity-50"
+                          className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-[#D21923] hover:bg-[#b8141d] text-white transition-colors disabled:opacity-50"
                         >
                           {booking.status === 'cancelada' ? (
-                            <RotateCcw className="w-3 h-3" />
+                            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                           ) : (
-                            <CheckCircle2 className="w-3 h-3" />
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                           )}
                           <span>{booking.status === 'cancelada' ? 'Reactivar' : 'Confirmar'}</span>
                         </button>
@@ -420,9 +447,9 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
                           type="button"
                           disabled={isBusy}
                           onClick={() => handleStatusChange(booking.id, 'cancelada')}
-                          className="inline-flex items-center gap-1 px-3 py-2 min-h-[38px] text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 transition-colors disabled:opacity-50"
+                          className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 transition-colors disabled:opacity-50"
                         >
-                          <XCircle className="w-3 h-3" />
+                          <XCircle className="w-3.5 h-3.5 shrink-0" />
                           <span>Cancelar</span>
                         </button>
                       )}
@@ -431,25 +458,26 @@ export const LiveBookingsPanel: React.FC<LiveBookingsPanelProps> = ({
                         href={buildWhatsappHref(booking)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-2 min-h-[38px] text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-emerald-900/40 border border-white/10 hover:border-emerald-700/60 text-zinc-200 transition-colors"
+                        className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-emerald-900/40 border border-white/10 hover:border-emerald-700/60 text-zinc-200 transition-colors"
                         title="Enviar resumen por WhatsApp"
                       >
-                        <MessageCircle className="w-3 h-3 text-emerald-400" />
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                         <span>WhatsApp</span>
                       </a>
-                    </div>
 
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={() => handleDelete(booking.id)}
-                      className="inline-flex items-center justify-center p-2 min-w-[38px] min-h-[38px] text-[11px] text-zinc-500 hover:text-[#D21923] transition-colors disabled:opacity-50"
-                      title="Eliminar registro"
-                      aria-label={`Eliminar cita ${booking.bookingCode}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => setConfirmDeleteId(booking.id)}
+                        className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/[0.03] hover:bg-[#D21923]/15 border border-white/10 hover:border-[#D21923]/50 text-zinc-400 hover:text-white transition-colors disabled:opacity-50 sm:ml-auto"
+                        title="Eliminar registro"
+                        aria-label={`Eliminar cita ${booking.bookingCode}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                        <span className="sm:hidden">Eliminar</span>
+                      </button>
+                    </div>
+                  )}
                 </motion.article>
               );
             })}

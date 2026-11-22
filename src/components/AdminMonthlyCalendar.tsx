@@ -60,6 +60,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
 
   const [selectedDateIso, setSelectedDateIso] = useState<string>(todayIso);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const filteredBookings = useMemo(() => {
@@ -231,6 +232,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
     setActionError(null);
     try {
       await onDeleteBooking(id);
+      setConfirmDeleteId(null);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Error al eliminar la cita.');
     } finally {
@@ -253,15 +255,15 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5">
       {/* Month Controls & Workload Summary */}
-      <div className="bg-[#1A1A1D] border border-white/10 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center justify-between md:justify-start gap-3">
-          <div className="flex items-center gap-1">
+      <div className="bg-[#1A1A1D] border border-white/10 p-3.5 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-2 bg-[#141416] border border-white/10 hover:border-[#D21923] text-zinc-300 hover:text-white transition-colors"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center bg-[#141416] border border-white/10 hover:border-[#D21923] text-zinc-300 hover:text-white transition-colors"
               aria-label="Mes anterior"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -269,28 +271,28 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-2 bg-[#141416] border border-white/10 hover:border-[#D21923] text-zinc-300 hover:text-white transition-colors"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center bg-[#141416] border border-white/10 hover:border-[#D21923] text-zinc-300 hover:text-white transition-colors"
               aria-label="Mes siguiente"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <h4 className="text-lg sm:text-xl font-serif font-bold text-white tracking-tight">
+          <h4 className="text-base sm:text-xl font-serif font-bold text-white tracking-tight flex-1 sm:flex-initial text-center sm:text-left truncate">
             {monthTitle}
           </h4>
 
           <button
             type="button"
             onClick={handleGoToToday}
-            className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider bg-[#141416] border border-white/10 hover:border-[#D21923] text-zinc-300 hover:text-white transition-colors"
+            className="px-3 py-2 min-h-[40px] text-[11px] font-semibold uppercase tracking-wider bg-[#141416] border border-white/10 hover:border-[#D21923] text-zinc-300 hover:text-white transition-colors shrink-0"
           >
             Hoy
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-4 sm:gap-5 text-xs">
-          <div>
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-3 sm:gap-5 text-xs pt-3 border-t border-white/10 lg:pt-0 lg:border-t-0">
+          <div className="bg-[#141416] sm:bg-transparent p-2.5 sm:p-0 border border-white/5 sm:border-0">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500 block">
               Citas del mes
             </span>
@@ -299,7 +301,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
             </span>
           </div>
           <div className="hidden sm:block h-6 w-[1px] bg-white/10" />
-          <div>
+          <div className="bg-[#141416] sm:bg-transparent p-2.5 sm:p-0 border border-white/5 sm:border-0">
             <span className="text-[10px] uppercase tracking-widest text-zinc-500 block">
               Días ocupados
             </span>
@@ -310,14 +312,14 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
           {monthStats.peakDate && (
             <>
               <div className="hidden sm:block h-6 w-[1px] bg-white/10" />
-              <div className="col-span-2 sm:col-span-1">
+              <div className="col-span-2 sm:col-span-1 bg-[#141416] sm:bg-transparent p-2.5 sm:p-0 border border-white/5 sm:border-0 flex items-center justify-between sm:block">
                 <span className="text-[10px] uppercase tracking-widest text-zinc-500 block">
                   Mayor carga
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedDateIso(monthStats.peakDate)}
-                  className="font-mono font-bold text-zinc-200 hover:text-[#D21923] text-xs underline decoration-white/20"
+                  className="font-mono font-bold text-zinc-200 hover:text-[#D21923] text-xs underline decoration-white/20 py-0.5"
                 >
                   {monthStats.peakDate} ({monthStats.peakCount})
                 </button>
@@ -334,7 +336,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
           {WEEKDAY_LABELS.map((day) => (
             <div
               key={day}
-              className="py-2.5 text-center text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-semibold"
+              className="py-2.5 text-center text-[10px] font-mono uppercase tracking-wider sm:tracking-widest text-zinc-400 font-semibold"
             >
               {day}
             </div>
@@ -359,7 +361,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
                 key={cell.dateIso}
                 type="button"
                 onClick={() => setSelectedDateIso(cell.dateIso)}
-                className={`relative min-h-[58px] sm:min-h-[88px] lg:min-h-[96px] p-1 sm:p-2 border-r border-b border-white/10 text-left flex flex-col justify-between transition-colors ${
+                className={`relative min-h-[60px] sm:min-h-[88px] lg:min-h-[96px] p-1 sm:p-2 border-r border-b border-white/10 text-left flex flex-col justify-between transition-colors ${
                   isSelected
                     ? 'bg-[#D21923]/15 ring-1 ring-inset ring-[#D21923]'
                     : cell.inCurrentMonth
@@ -367,10 +369,10 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
                     : 'bg-[#141416]/60 opacity-45 hover:opacity-75'
                 }`}
               >
-                {/* Day Number + Active Count */}
-                <div className="flex items-start justify-between gap-0.5 sm:gap-1">
+                {/* Day Number + Active Count (stacked cleanly on tiny mobile widths so nothing collides) */}
+                <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between gap-1 w-full">
                   <span
-                    className={`text-[11px] sm:text-xs font-mono font-bold inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 ${
+                    className={`text-[11px] sm:text-xs font-mono font-bold inline-flex items-center justify-center w-6 h-6 shrink-0 ${
                       isToday
                         ? 'bg-[#D21923] text-white'
                         : isSelected
@@ -385,7 +387,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
 
                   {activeTotal > 0 && (
                     <span
-                      className={`text-[10px] font-mono font-bold px-1.5 py-0.5 ${
+                      className={`text-[10px] leading-none font-mono font-bold px-1.5 py-0.5 shrink-0 ${
                         confirmedCount > 0
                           ? 'bg-[#D21923] text-white'
                           : 'bg-white/15 text-zinc-100'
@@ -432,22 +434,22 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-zinc-400 px-1">
-        <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 text-[11px] text-zinc-400 px-1">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 bg-[#D21923] inline-block" />
-            <span>Hoy / Citas confirmadas</span>
+            <span className="w-2.5 h-2.5 bg-[#D21923] inline-block shrink-0" />
+            <span>Hoy / Confirmadas</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 bg-white/20 inline-block" />
-            <span>Solicitadas sin confirmar</span>
+            <span className="w-2.5 h-2.5 bg-white/20 inline-block shrink-0" />
+            <span>Solicitadas</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-6 h-1 bg-[#D21923] inline-block" />
-            <span>Carga horaria del día</span>
+            <span className="w-5 h-1 bg-[#D21923] inline-block shrink-0" />
+            <span>Carga del día</span>
           </span>
         </div>
-        <span>Haz clic en un día para gestionar sus citas</span>
+        <span className="text-zinc-500">Toca un día para gestionar sus citas</span>
       </div>
 
       {actionError && (
@@ -457,15 +459,15 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
       )}
 
       {/* Selected Day Agenda Detail Panel */}
-      <div className="bg-[#1A1A1D] border border-white/10 p-5">
+      <div className="bg-[#1A1A1D] border border-white/10 p-3.5 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-white/10">
-          <div>
+          <div className="min-w-0">
             <span className="text-[10px] font-mono uppercase tracking-widest text-[#D21923] font-bold block">
               Detalle del día seleccionado
             </span>
-            <h5 className="text-base sm:text-lg font-serif font-bold text-white flex items-center gap-2 mt-0.5">
-              <CalendarIcon className="w-4 h-4 text-[#D21923]" />
-              <span>{prettySelectedDate}</span>
+            <h5 className="text-sm sm:text-lg font-serif font-bold text-white flex items-center gap-2 mt-0.5">
+              <CalendarIcon className="w-4 h-4 text-[#D21923] shrink-0" />
+              <span className="truncate">{prettySelectedDate}</span>
             </h5>
           </div>
 
@@ -473,7 +475,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
             <button
               type="button"
               onClick={() => onFilterListByDate(selectedDateIso)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider bg-[#141416] border border-white/15 hover:border-[#D21923] text-zinc-200 hover:text-white transition-colors self-start sm:self-auto"
+              className="w-full sm:w-auto min-h-[40px] inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider bg-[#141416] border border-white/15 hover:border-[#D21923] text-zinc-200 hover:text-white transition-colors shrink-0"
             >
               <span>Ver día en Lista</span>
               <ArrowUpRight className="w-3.5 h-3.5 text-[#D21923]" />
@@ -490,19 +492,20 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
             {selectedDayBookings.map((booking) => {
               const isBusy = busyId === booking.id;
               const isCancelled = booking.status === 'cancelada';
+              const isConfirmingDelete = confirmDeleteId === booking.id;
 
               return (
                 <div
                   key={booking.id}
-                  className={`p-4 bg-[#141416] border flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
-                    isCancelled ? 'border-white/5 opacity-60' : 'border-white/10'
+                  className={`p-3.5 sm:p-4 bg-[#141416] border flex flex-col gap-3.5 ${
+                    isCancelled ? 'border-white/5 opacity-70' : 'border-white/10'
                   }`}
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="font-mono font-bold text-white flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-[#D21923]" />
-                        {booking.timeSlot}
+                        <Clock className="w-3.5 h-3.5 text-[#D21923] shrink-0" />
+                        <span>{booking.timeSlot}</span>
                       </span>
                       <span className="text-zinc-600">·</span>
                       <span className="font-mono text-[#D21923] font-semibold">
@@ -522,7 +525,7 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
                     </div>
 
                     <p
-                      className={`text-sm font-serif font-bold text-white ${
+                      className={`text-sm font-serif font-bold text-white break-words ${
                         isCancelled ? 'line-through text-zinc-400' : ''
                       }`}
                     >
@@ -531,63 +534,91 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
 
                     <p className="text-xs text-zinc-400 flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="inline-flex items-center gap-1 text-zinc-300">
-                        <User className="w-3 h-3 text-[#D21923]" />
-                        {booking.instructorName}
+                        <User className="w-3 h-3 text-[#D21923] shrink-0" />
+                        <span>{booking.instructorName}</span>
                       </span>
                       <span>Tel: {booking.phone}</span>
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    {booking.status !== 'confirmada' && (
+                  {/* Clean, non-overlapping responsive action bar */}
+                  {isConfirmingDelete ? (
+                    <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#D21923]/10 p-2.5 border border-[#D21923]/40">
+                      <span className="text-[11px] text-white font-medium">
+                        ¿Eliminar esta cita permanentemente?
+                      </span>
+                      <div className="grid grid-cols-2 sm:flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleDelete(booking.id)}
+                          className="min-h-[40px] px-3 py-2 text-[11px] font-bold uppercase tracking-wider bg-[#D21923] hover:bg-[#b8141d] text-white transition-colors disabled:opacity-50"
+                        >
+                          Sí, eliminar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="min-h-[40px] px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/10 hover:bg-white/15 text-zinc-200 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="pt-3 border-t border-white/10 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+                      {booking.status !== 'confirmada' && (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleStatusChange(booking.id, 'confirmada')}
+                          className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-[#D21923] hover:bg-[#b8141d] text-white transition-colors disabled:opacity-50"
+                        >
+                          {booking.status === 'cancelada' ? (
+                            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          )}
+                          <span>{booking.status === 'cancelada' ? 'Reactivar' : 'Confirmar'}</span>
+                        </button>
+                      )}
+
+                      {booking.status !== 'cancelada' && (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleStatusChange(booking.id, 'cancelada')}
+                          className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 transition-colors disabled:opacity-50"
+                        >
+                          <XCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>Cancelar</span>
+                        </button>
+                      )}
+
+                      <a
+                        href={getWhatsAppHref(booking)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-emerald-900/40 border border-white/10 hover:border-emerald-700/60 text-zinc-200 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>WhatsApp</span>
+                      </a>
+
                       <button
                         type="button"
                         disabled={isBusy}
-                        onClick={() => handleStatusChange(booking.id, 'confirmada')}
-                        className="inline-flex items-center gap-1 px-3 py-2 min-h-[38px] text-[11px] font-semibold uppercase tracking-wider bg-[#D21923] hover:bg-[#b8141d] text-white transition-colors disabled:opacity-50"
+                        onClick={() => setConfirmDeleteId(booking.id)}
+                        className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider bg-white/[0.03] hover:bg-[#D21923]/15 border border-white/10 hover:border-[#D21923]/50 text-zinc-400 hover:text-white transition-colors disabled:opacity-50 sm:ml-auto"
+                        aria-label={`Eliminar cita ${booking.bookingCode}`}
+                        title="Eliminar registro"
                       >
-                        {booking.status === 'cancelada' ? (
-                          <RotateCcw className="w-3 h-3" />
-                        ) : (
-                          <CheckCircle2 className="w-3 h-3" />
-                        )}
-                        <span>{booking.status === 'cancelada' ? 'Reactivar' : 'Confirmar'}</span>
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                        <span className="sm:hidden">Eliminar</span>
                       </button>
-                    )}
-
-                    {booking.status !== 'cancelada' && (
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleStatusChange(booking.id, 'cancelada')}
-                        className="inline-flex items-center gap-1 px-3 py-2 min-h-[38px] text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 transition-colors disabled:opacity-50"
-                      >
-                        <XCircle className="w-3 h-3" />
-                        <span>Cancelar</span>
-                      </button>
-                    )}
-
-                    <a
-                      href={getWhatsAppHref(booking)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-2 min-h-[38px] text-[11px] font-semibold uppercase tracking-wider bg-white/5 hover:bg-emerald-900/40 border border-white/10 hover:border-emerald-700/60 text-zinc-200 transition-colors"
-                    >
-                      <MessageCircle className="w-3 h-3 text-emerald-400" />
-                      <span>WhatsApp</span>
-                    </a>
-
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={() => handleDelete(booking.id)}
-                      className="min-w-[38px] min-h-[38px] flex items-center justify-center text-zinc-500 hover:text-[#D21923] transition-colors disabled:opacity-50"
-                      aria-label={`Eliminar cita ${booking.bookingCode}`}
-                      title="Eliminar registro"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -597,3 +628,4 @@ export const AdminMonthlyCalendar: React.FC<AdminMonthlyCalendarProps> = ({
     </div>
   );
 };
+

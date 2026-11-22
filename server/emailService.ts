@@ -17,23 +17,34 @@ function escapeHtml(value: string | undefined | null): string {
     .replace(/'/g, '&#39;');
 }
 
+const DEFAULT_ADMIN_RECIPIENT = 'bryanalvarez119@gmail.com';
+
+function isPlaceholder(value: string | undefined): boolean {
+  if (!value) return true;
+  const trimmed = value.trim();
+  return !trimmed || trimmed.startsWith('MY_');
+}
+
 function getRecipientEmail(): string {
-  return (
-    process.env.ADMIN_NOTIFICATION_EMAIL?.trim() ||
-    process.env.SMTP_USER?.trim() ||
-    ''
-  );
+  const explicit = process.env.ADMIN_NOTIFICATION_EMAIL?.trim();
+  if (explicit && !isPlaceholder(explicit)) return explicit;
+
+  const smtpUser = process.env.SMTP_USER?.trim();
+  if (smtpUser && !isPlaceholder(smtpUser)) return smtpUser;
+
+  return DEFAULT_ADMIN_RECIPIENT;
 }
 
 function hasSmtpConfig(): boolean {
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.trim();
   const host = process.env.SMTP_HOST?.trim();
-  return Boolean(user && pass && (host || user.toLowerCase().endsWith('@gmail.com')));
+  if (isPlaceholder(user) || isPlaceholder(pass)) return false;
+  return Boolean(host || user!.toLowerCase().endsWith('@gmail.com'));
 }
 
 function hasResendConfig(): boolean {
-  return Boolean(process.env.RESEND_API_KEY?.trim());
+  return !isPlaceholder(process.env.RESEND_API_KEY);
 }
 
 export function isEmailNotificationConfigured(): boolean {
@@ -49,10 +60,12 @@ async function deliverEmail(params: {
 }): Promise<EmailSendResult> {
   if (hasSmtpConfig()) {
     const user = process.env.SMTP_USER!.trim();
-    const pass = process.env.SMTP_PASS!.trim();
+    const rawPass = process.env.SMTP_PASS!.trim();
     const host =
       process.env.SMTP_HOST?.trim() ||
       (user.toLowerCase().endsWith('@gmail.com') ? 'smtp.gmail.com' : '');
+    const pass =
+      host === 'smtp.gmail.com' ? rawPass.replace(/\s+/g, '') : rawPass;
     const port = Number(process.env.SMTP_PORT || '587');
     const secure =
       process.env.SMTP_SECURE === 'true' ||
@@ -112,7 +125,7 @@ async function deliverEmail(params: {
   return {
     sent: false,
     reason:
-      'No hay credenciales de correo configuradas (SMTP_HOST/SMTP_USER/SMTP_PASS o RESEND_API_KEY).',
+      'Falta configurar el envío de correo en las variables de entorno del servidor (Secrets en AI Studio o Environment Variables en Vercel): define SMTP_USER + SMTP_PASS (Gmail App Password) o RESEND_API_KEY.',
   };
 }
 

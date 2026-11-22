@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -18,7 +18,7 @@ import {
   Sun,
   Sunset,
   ArrowRight,
-  Info,
+  Zap,
 } from 'lucide-react';
 import { ClassType, Instructor, AppointmentBooking, OccupiedSlot } from '../types';
 import { CLASS_TYPES, INSTRUCTORS, TIME_SLOTS, CLUB_INFO } from '../data/clubData';
@@ -44,8 +44,7 @@ interface CalendarDayOption {
   monthShort: string;
   year: number;
   formattedPretty: string;
-  jsDay: number; // 0 = Sun ... 6 = Sat
-  mondayIndex: number; // 0 = Mon ... 6 = Sun
+  relativeLabel: string | null;
 }
 
 const WEEKDAY_NAMES_FULL = [
@@ -57,8 +56,6 @@ const WEEKDAY_NAMES_FULL = [
   'Viernes',
   'Sábado',
 ];
-
-const WEEKDAY_HEADERS_MON = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 const EXPERIENCE_OPTIONS: Array<{
   value: AppointmentBooking['experienceLevel'];
@@ -114,7 +111,6 @@ function generateUpcomingDays(count = 21): CalendarDayOption[] {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     const jsDay = d.getDay();
-    const mondayIndex = jsDay === 0 ? 6 : jsDay - 1;
     const monthLong = d.toLocaleDateString('es-ES', { month: 'long' });
     const monthShort = d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
     const dayShort = d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
@@ -134,8 +130,7 @@ function generateUpcomingDays(count = 21): CalendarDayOption[] {
         month: 'long',
         year: 'numeric',
       }),
-      jsDay,
-      mondayIndex,
+      relativeLabel: i === 1 ? 'Mañana' : null,
     });
   }
 
@@ -148,7 +143,11 @@ function matchesAudienceFilter(cls: ClassType, filter: AudienceFilter): boolean 
     return cls.id === 'iniciacion-infantil' || cls.id === 'manejo-y-vinculo';
   }
   if (filter === 'adults') {
-    return cls.id === 'clase-formativa' || cls.id === 'evaluacion-diagnostico' || cls.id === 'manejo-y-vinculo';
+    return (
+      cls.id === 'clase-formativa' ||
+      cls.id === 'evaluacion-diagnostico' ||
+      cls.id === 'manejo-y-vinculo'
+    );
   }
   if (filter === 'family') {
     return cls.id === 'experiencia-familiar' || cls.id === 'manejo-y-vinculo';
@@ -173,9 +172,13 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   preselectedClassTypeId,
   preselectedInstructorId,
 }) => {
-  // 3 clear intuitive stages + step 4 as confirmed boarding pass
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  const configuratorTopRef = useRef<HTMLDivElement | null>(null);
+  const studentNameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Streamlined 2-step studio + step 3 confirmed digital boarding pass
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>('all');
+  const [weekIndex, setWeekIndex] = useState<0 | 1 | 2>(0);
 
   const [selectedClassType, setSelectedClassType] = useState<ClassType>(
     CLASS_TYPES.find((c) => c.id === preselectedClassTypeId) || CLASS_TYPES[0]
@@ -202,25 +205,43 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
 
   const upcomingDays = useMemo(() => generateUpcomingDays(21), []);
 
-  const isSlotOccupied = (dateIso: string, timeSlot: string, instructorId: string): boolean => {
+  const isSlotOccupied = (
+    dateIso: string,
+    timeSlot: string,
+    instructorId: string
+  ): boolean => {
     if (instructorId === 'inst-cualquiera') return false;
+    const normalizedSlotStart = timeSlot.slice(0, 5);
     return occupiedSlots.some(
-      (s) => s.date === dateIso && s.timeSlot === timeSlot && s.instructorId === instructorId
+      (s) =>
+        s.date === dateIso &&
+        s.timeSlot.slice(0, 5) === normalizedSlotStart &&
+        s.instructorId === instructorId
     );
   };
 
-  const isInstructorAvailableOnDay = (day: CalendarDayOption, instructor: Instructor): boolean => {
+  const isInstructorAvailableOnDay = (
+    day: CalendarDayOption,
+    instructor: Instructor
+  ): boolean => {
     return instructor.availableDays.includes(day.dayOfWeekFull);
   };
 
-  const getAvailableSlotsCountForDay = (day: CalendarDayOption, instructor: Instructor): number => {
+  const getAvailableSlotsCountForDay = (
+    day: CalendarDayOption,
+    instructor: Instructor
+  ): number => {
     if (!isInstructorAvailableOnDay(day, instructor)) return 0;
-    return TIME_SLOTS.filter((slot) => !isSlotOccupied(day.iso, slot.time, instructor.id)).length;
+    return TIME_SLOTS.filter(
+      (slot) => !isSlotOccupied(day.iso, slot.time, instructor.id)
+    ).length;
   };
 
   const [selectedDateIso, setSelectedDateIso] = useState<string>(() => {
     const firstValid = upcomingDays.find(
-      (d) => isInstructorAvailableOnDay(d, selectedInstructor) && getAvailableSlotsCountForDay(d, selectedInstructor) > 0
+      (d) =>
+        isInstructorAvailableOnDay(d, selectedInstructor) &&
+        getAvailableSlotsCountForDay(d, selectedInstructor) > 0
     );
     return firstValid?.iso || upcomingDays[0].iso;
   });
@@ -241,18 +262,19 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
       getAvailableSlotsCountForDay(currentDay, selectedInstructor) > 0;
 
     if (!currentDayValid) {
-      const nextValid = upcomingDays.find(
+      const nextValidIdx = upcomingDays.findIndex(
         (d) =>
           isInstructorAvailableOnDay(d, selectedInstructor) &&
           getAvailableSlotsCountForDay(d, selectedInstructor) > 0
       );
-      if (nextValid) {
-        setSelectedDateIso(nextValid.iso);
+      if (nextValidIdx >= 0) {
+        setSelectedDateIso(upcomingDays[nextValidIdx].iso);
+        setWeekIndex(Math.min(2, Math.floor(nextValidIdx / 7)) as 0 | 1 | 2);
       }
     }
   }, [selectedInstructor]);
 
-  // Ensure selectedTimeSlot switches to an open slot if the chosen slot is occupied on the chosen date
+  // Ensure selectedTimeSlot switches to an open slot if the chosen slot becomes occupied
   useEffect(() => {
     if (isSlotOccupied(selectedDate.iso, selectedTimeSlot, selectedInstructor.id)) {
       const firstFree = TIME_SLOTS.find(
@@ -270,20 +292,21 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   const [guardianName, setGuardianName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState<AppointmentBooking['experienceLevel']>(
-    'Sin experiencia (Primera vez)'
-  );
+  const [experienceLevel, setExperienceLevel] =
+    useState<AppointmentBooking['experienceLevel']>('Sin experiencia (Primera vez)');
   const [notes, setNotes] = useState('');
   const [consentData, setConsentData] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [confirmedBooking, setConfirmedBooking] = useState<AppointmentBooking | null>(null);
+  const [confirmedBooking, setConfirmedBooking] =
+    useState<AppointmentBooking | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
   const parsedAgeNumber = parseInt(studentAge.replace(/\D/g, ''), 10);
-  const isLikelyMinor = !Number.isNaN(parsedAgeNumber) && parsedAgeNumber > 0 && parsedAgeNumber < 18;
+  const isLikelyMinor =
+    !Number.isNaN(parsedAgeNumber) && parsedAgeNumber > 0 && parsedAgeNumber < 18;
 
   const selectedSlotOccupied = isSlotOccupied(
     selectedDate.iso,
@@ -300,23 +323,61 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
     [audienceFilter]
   );
 
-  const calendarMonthHeading = useMemo(() => {
-    const first = upcomingDays[0];
-    const last = upcomingDays[upcomingDays.length - 1];
-    if (!first || !last) return '';
-    if (first.monthName === last.monthName) {
-      return `${first.monthName} ${first.year}`;
-    }
-    return `${first.monthName} — ${last.monthName} ${last.year}`;
-  }, [upcomingDays]);
+  const visibleWeekDays = useMemo(
+    () => upcomingDays.slice(weekIndex * 7, weekIndex * 7 + 7),
+    [upcomingDays, weekIndex]
+  );
+
+  const weekTabs = useMemo(
+    () => [
+      { index: 0 as const, label: 'Próximos 7 días' },
+      { index: 1 as const, label: 'Semana 2' },
+      { index: 2 as const, label: 'Semana 3' },
+    ],
+    []
+  );
 
   const morningSlots = TIME_SLOTS.filter((s) => s.period === 'Mañana');
   const afternoonSlots = TIME_SLOTS.filter((s) => s.period === 'Tarde');
 
+  const scrollToConfiguratorTop = () => {
+    configuratorTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleGoToStep = (step: 1 | 2) => {
+    setCurrentStep(step);
+    scrollToConfiguratorTop();
+    if (step === 2) {
+      setTimeout(() => {
+        studentNameInputRef.current?.focus({ preventScroll: true });
+      }, 280);
+    }
+  };
+
+  const handlePickEarliestSlot = () => {
+    for (let i = 0; i < upcomingDays.length; i++) {
+      const day = upcomingDays[i];
+      if (!isInstructorAvailableOnDay(day, selectedInstructor)) continue;
+      const firstOpen = TIME_SLOTS.find(
+        (slot) => !isSlotOccupied(day.iso, slot.time, selectedInstructor.id)
+      );
+      if (firstOpen) {
+        setSelectedDateIso(day.iso);
+        setSelectedTimeSlot(firstOpen.time);
+        setWeekIndex(Math.min(2, Math.floor(i / 7)) as 0 | 1 | 2);
+        return;
+      }
+    }
+  };
+
   const validateStudentData = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!studentName.trim()) newErrors.studentName = 'Escribe el nombre del alumno.';
-    if (!studentAge.trim()) newErrors.studentAge = 'Indica la edad aproximada.';
+    if (studentName.trim().length < 2) {
+      newErrors.studentName = 'Escribe el nombre completo del alumno.';
+    }
+    if (!studentAge.trim()) {
+      newErrors.studentAge = 'Indica la edad aproximada.';
+    }
     if (!phone.trim() || phone.trim().length < 7) {
       newErrors.phone = 'Ingresa un teléfono o WhatsApp válido.';
     }
@@ -327,7 +388,22 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
       newErrors.consentData = 'Acepta el tratamiento de datos para continuar.';
     }
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+
+    if (Object.keys(newErrors).length > 0) {
+      const firstFieldId = newErrors.studentName
+        ? 'booking-student-name'
+        : newErrors.studentAge
+        ? 'booking-student-age'
+        : newErrors.phone
+        ? 'booking-phone'
+        : newErrors.email
+        ? 'booking-email'
+        : 'booking-consent';
+      document.getElementById(firstFieldId)?.focus();
+      return false;
+    }
+
+    return true;
   };
 
   const handleConfirmBooking = async () => {
@@ -353,11 +429,29 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
         notes: notes.trim() || 'Sin observaciones previas',
       });
       setConfirmedBooking(created);
-      setCurrentStep(4);
+      setCurrentStep(3);
+      scrollToConfiguratorTop();
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : 'No se pudo registrar la reserva. Intenta nuevamente.'
-      );
+      let friendlyMessage = 'No se pudo registrar la reserva. Intenta nuevamente.';
+      if (err instanceof Error) {
+        if (err.message.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(err.message) as { error?: string };
+            if (parsed?.error?.includes('Quota exceeded')) {
+              friendlyMessage =
+                'Se alcanzó temporalmente el límite diario de la base de datos. Intenta mañana o contáctanos por WhatsApp.';
+            } else {
+              friendlyMessage =
+                'No pudimos confirmar el horario seleccionado. Verifica que la franja esté libre e intenta nuevamente.';
+            }
+          } catch {
+            friendlyMessage = err.message;
+          }
+        } else {
+          friendlyMessage = err.message;
+        }
+      }
+      setSubmitError(friendlyMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -440,30 +534,47 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
     setCopiedCode(false);
   };
 
-  const anyInstructor = INSTRUCTORS.find((i) => i.id === 'inst-cualquiera') || INSTRUCTORS[0];
+  const anyInstructor =
+    INSTRUCTORS.find((i) => i.id === 'inst-cualquiera') || INSTRUCTORS[0];
 
   const stepsMeta = [
-    { num: 1 as const, title: 'Clase y Profesor', subtitle: 'Actividad y guía' },
-    { num: 2 as const, title: 'Día y Horario', subtitle: 'Disponibilidad en vivo' },
-    { num: 3 as const, title: 'Datos del Jinete', subtitle: 'Registro y pase' },
+    {
+      num: 1 as const,
+      title: '1. Clase y Horario',
+      subtitle: 'Elige modalidad, profesor y turno',
+    },
+    {
+      num: 2 as const,
+      title: '2. Datos y Pase',
+      subtitle: 'Completa el registro al instante',
+    },
   ];
 
-  const leadingEmptyDays = upcomingDays[0]?.mondayIndex || 0;
+  const toggleNoteSuggestion = (suggestion: string) => {
+    setNotes((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return suggestion;
+      if (trimmed.includes(suggestion)) return trimmed;
+      return `${trimmed}. ${suggestion}`;
+    });
+  };
 
   return (
     <section
       id="agendar-cita"
       className="py-20 sm:py-28 bg-[#141416] relative border-b border-white/10"
     >
-      {/* Subtle architectural backdrop */}
       <div className="absolute inset-0 equestrian-grid-pattern opacity-25 pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Section Editorial Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 sm:mb-12">
+        <div
+          ref={configuratorTopRef}
+          className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 sm:mb-12 scroll-mt-24"
+        >
           <div className="max-w-2xl">
             <p className="text-xs uppercase tracking-[0.2em] text-[#D21923] font-semibold mb-3">
-              Concierge de Reservas
+              Reserva Rápida en 2 Pasos
             </p>
             <h2 className="text-3xl sm:text-5xl font-serif font-bold text-white tracking-tight text-balance leading-[1.12]">
               Agenda tu próxima experiencia{' '}
@@ -471,12 +582,12 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
             </h2>
           </div>
           <p className="text-sm text-zinc-400 max-w-md leading-relaxed">
-            Elige tu programa ecuestre, visualiza los horarios reales disponibles y obtén tu pase digital de inmediato. Sin pagos previos.
+            Selecciona tu clase, consulta los días y horas libres en tiempo real y obtén tu pase digital al instante. Sin pagos previos.
           </p>
         </div>
 
         {/* CONFIRMED VIEW: Digital Boarding Pass */}
-        {currentStep === 4 && confirmedBooking ? (
+        {currentStep === 3 && confirmedBooking ? (
           <div className="bg-[#1A1A1D] border border-white/10 rounded-2xl p-6 sm:p-10 lg:p-12 shadow-2xl">
             <div className="max-w-3xl mx-auto">
               <div className="flex flex-col items-center text-center mb-8">
@@ -488,19 +599,21 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 </h3>
                 <p className="text-sm text-zinc-300 mt-2 max-w-xl">
                   Preparamos todo para recibir a{' '}
-                  <strong className="text-white font-semibold">{confirmedBooking.studentName}</strong>.
-                  Guarda o comparte tu pase digital a continuación.
+                  <strong className="text-white font-semibold">
+                    {confirmedBooking.studentName}
+                  </strong>
+                  . Guarda o comparte tu pase digital a continuación.
                 </p>
               </div>
 
               {/* Digital Boarding Pass Card */}
               <div className="bg-[#141416] border border-white/15 rounded-xl overflow-hidden shadow-xl mb-8">
-                {/* Pass Header */}
                 <div className="px-6 py-5 bg-[#1F1F23] border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <img
                       src={CLUB_INFO.logoUrl}
                       alt="La Caballería"
+                      referrerPolicy="no-referrer"
                       className="h-9 w-auto object-contain"
                     />
                     <div>
@@ -526,7 +639,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       type="button"
                       onClick={() => handleCopyBookingCode(confirmedBooking.bookingCode)}
                       aria-label="Copiar código de reserva"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 transition-colors shrink-0"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 transition-colors shrink-0 whitespace-nowrap"
                     >
                       {copiedCode ? (
                         <>
@@ -543,7 +656,6 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                   </div>
                 </div>
 
-                {/* Pass Details */}
                 <div className="p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-3 gap-6 border-b border-white/10">
                   <div>
                     <span className="text-xs text-zinc-500 block mb-1">Actividad</span>
@@ -552,13 +664,17 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-zinc-500 block mb-1">Instructor asignado</span>
+                    <span className="text-xs text-zinc-500 block mb-1">
+                      Instructor asignado
+                    </span>
                     <span className="text-sm font-semibold text-white block">
                       {confirmedBooking.instructorName}
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-zinc-500 block mb-1">Fecha y horario</span>
+                    <span className="text-xs text-zinc-500 block mb-1">
+                      Fecha y horario
+                    </span>
                     <span className="text-sm font-semibold text-white capitalize block">
                       {confirmedBooking.formattedDate}
                     </span>
@@ -573,7 +689,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-zinc-500 block mb-1">Acudiente / Contacto</span>
+                    <span className="text-xs text-zinc-500 block mb-1">
+                      Acudiente / Contacto
+                    </span>
                     <span className="text-sm font-medium text-zinc-200 block">
                       {confirmedBooking.guardianName}
                     </span>
@@ -582,14 +700,15 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-zinc-500 block mb-1">Nivel registrado</span>
+                    <span className="text-xs text-zinc-500 block mb-1">
+                      Nivel registrado
+                    </span>
                     <span className="text-sm font-medium text-zinc-200">
                       {confirmedBooking.experienceLevel}
                     </span>
                   </div>
                 </div>
 
-                {/* Practical arrival checklist */}
                 <div className="px-6 py-4 bg-[#18181B] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-zinc-300">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-[#D21923] shrink-0" />
@@ -603,31 +722,30 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <a
                   href={buildWhatsappHref(confirmedBooking)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-emerald-700 hover:bg-emerald-600 transition-colors"
+                  className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-emerald-700 hover:bg-emerald-600 transition-colors whitespace-nowrap"
                 >
-                  <MessageCircle className="w-4 h-4" />
+                  <MessageCircle className="w-4 h-4 shrink-0" />
                   <span>Confirmar por WhatsApp</span>
                 </a>
 
                 <button
                   type="button"
                   onClick={() => handleDownloadIcs(confirmedBooking)}
-                  className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors"
+                  className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors whitespace-nowrap"
                 >
-                  <CalendarPlus className="w-4 h-4" />
+                  <CalendarPlus className="w-4 h-4 shrink-0" />
                   <span>Guardar en Calendario</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleResetBooking}
-                  className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                  className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors whitespace-nowrap"
                 >
                   <span>Agendar otra sesión</span>
                 </button>
@@ -635,17 +753,23 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
             </div>
           </div>
         ) : (
-          /* ACTIVE BOOKING STUDIO: 2-Column Interactive Layout */
+          /* ACTIVE BOOKING STUDIO: 2-Step Guided Configurator + Live Pass Summary */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* LEFT 8 COLS: Guided 3-Stage Configurator */}
+            {/* LEFT 8 COLS */}
             <div className="lg:col-span-8 bg-[#1A1A1D] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-              {/* Top Interactive Step Navigation */}
-              <div className="border-b border-white/10 bg-[#17171A] px-3 sm:px-8 py-3.5 sm:py-4">
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-4" role="tablist" aria-label="Pasos de reserva">
+              {/* Interactive 2-Step Switcher */}
+              <div className="border-b border-white/10 bg-[#17171A] px-3 sm:px-8 py-3.5">
+                <div
+                  className="grid grid-cols-2 gap-2 sm:gap-4"
+                  role="tablist"
+                  aria-label="Pasos de reserva"
+                >
                   {stepsMeta.map((step) => {
                     const isActive = currentStep === step.num;
                     const isCompleted = currentStep > step.num;
-                    const canJump = step.num <= currentStep;
+                    const canClick =
+                      step.num === 1 ||
+                      (!selectedSlotOccupied && !selectedDayUnavailableForInstructor);
 
                     return (
                       <button
@@ -653,29 +777,31 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         type="button"
                         role="tab"
                         aria-selected={isActive}
-                        disabled={!canJump}
-                        onClick={() => canJump && setCurrentStep(step.num)}
-                        className={`group text-center sm:text-left px-1.5 sm:px-3 py-2 min-h-[48px] rounded-lg transition-all flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 border ${
+                        disabled={!canClick}
+                        onClick={() => canClick && handleGoToStep(step.num)}
+                        className={`text-left px-3 sm:px-4 py-2.5 min-h-[52px] rounded-xl transition-all flex items-center gap-3 border ${
                           isActive
                             ? 'bg-[#221A1C] border-[#D21923]/60 text-white'
                             : isCompleted
-                            ? 'bg-white/[0.03] border-white/10 text-zinc-200 hover:border-white/25 cursor-pointer'
-                            : 'bg-transparent border-transparent text-zinc-500 cursor-not-allowed'
+                            ? 'bg-white/[0.03] border-white/15 text-zinc-200 hover:border-white/35 cursor-pointer'
+                            : canClick
+                            ? 'bg-white/[0.02] border-white/10 text-zinc-300 hover:border-white/25 cursor-pointer'
+                            : 'bg-transparent border-white/5 text-zinc-500 cursor-not-allowed'
                         }`}
                       >
                         <span
-                          className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-mono font-bold shrink-0 transition-colors tabular-nums ${
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono font-bold shrink-0 transition-colors tabular-nums ${
                             isActive
                               ? 'bg-[#D21923] text-white'
                               : isCompleted
-                              ? 'bg-white/15 text-white'
-                              : 'bg-white/5 text-zinc-500'
+                              ? 'bg-emerald-600/80 text-white'
+                              : 'bg-white/10 text-zinc-300'
                           }`}
                         >
                           {isCompleted ? <Check className="w-3.5 h-3.5" /> : step.num}
                         </span>
-                        <div className="min-w-0 max-w-full">
-                          <span className="text-[11px] sm:text-sm font-semibold block truncate">
+                        <div className="min-w-0">
+                          <span className="text-xs sm:text-sm font-semibold block truncate">
                             {step.title}
                           </span>
                           <span className="text-[11px] text-zinc-400 hidden sm:block truncate">
@@ -688,26 +814,24 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 </div>
               </div>
 
-              {/* Step Content Area */}
               <div className="p-4 sm:p-8">
                 {/* ====================================================== */}
-                {/* STAGE 1: CLASE Y PROFESOR                              */}
+                {/* STAGE 1: CLASE, PROFESOR, DÍA Y HORA EN UNA SOLA VISTA */}
                 {/* ====================================================== */}
                 {currentStep === 1 && (
-                  <div className="space-y-10 animate-in fade-in duration-200">
-                    {/* 1A: Activity / Class Type */}
+                  <div className="space-y-8">
+                    {/* 1A: Class Type Selector */}
                     <div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                         <div>
-                          <h3 className="text-xl sm:text-2xl font-serif font-bold text-white">
-                            ¿Qué clase te gustaría reservar?
+                          <h3 className="text-lg sm:text-xl font-serif font-bold text-white">
+                            Elige el tipo de sesión
                           </h3>
-                          <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-                            Filtra por perfil o elige la modalidad que mejor se adapte a tu momento.
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            Filtra según quien asistirá para encontrar la modalidad ideal.
                           </p>
                         </div>
 
-                        {/* Interactive Audience Filter Segmented Bar */}
                         <div className="inline-flex items-center p-1 rounded-lg bg-[#121214] border border-white/10 self-start sm:self-auto shrink-0 overflow-x-auto max-w-full">
                           {(
                             [
@@ -721,7 +845,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                               key={tab.id}
                               type="button"
                               onClick={() => setAudienceFilter(tab.id)}
-                              className={`px-3 py-2 min-h-[38px] rounded-md text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
+                              className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
                                 audienceFilter === tab.id
                                   ? 'bg-[#D21923] text-white'
                                   : 'text-zinc-400 hover:text-white'
@@ -733,7 +857,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {filteredClasses.map((cls) => {
                           const isSelected = selectedClassType.id === cls.id;
                           return (
@@ -741,19 +865,22 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                               key={cls.id}
                               type="button"
                               onClick={() => setSelectedClassType(cls)}
-                              className={`group text-left p-5 rounded-xl border transition-all flex flex-col justify-between gap-4 ${
+                              className={`group text-left p-4 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
                                 isSelected
                                   ? 'bg-[#21181B] border-[#D21923] shadow-lg shadow-[#D21923]/10'
                                   : 'bg-[#141416] border-white/10 hover:border-white/25 hover:bg-[#18181B]'
                               }`}
                             >
                               <div>
-                                {/* Clean unboxed typographic metadata */}
-                                <div className="flex items-center justify-between gap-2 mb-2">
-                                  <p className="text-xs text-zinc-400 truncate">
-                                    <span className="text-[#D21923] font-semibold">{cls.badge}</span>
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                  <p className="text-[11px] text-zinc-400 truncate">
+                                    <span className="text-[#D21923] font-semibold">
+                                      {cls.badge}
+                                    </span>
                                     <span aria-hidden="true"> · </span>
                                     <span className="tabular-nums">{cls.duration}</span>
+                                    <span aria-hidden="true"> · </span>
+                                    <span>{cls.recommendedAge}</span>
                                   </p>
                                   <span
                                     className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
@@ -766,21 +893,12 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                                   </span>
                                 </div>
 
-                                <h4 className="text-base sm:text-lg font-serif font-bold text-white mb-1.5">
+                                <h4 className="text-sm sm:text-base font-serif font-bold text-white leading-snug">
                                   {cls.name}
                                 </h4>
-                                <p className="text-xs sm:text-[13px] text-zinc-300 leading-relaxed">
+                                <p className="text-xs text-zinc-400 leading-relaxed mt-1 line-clamp-2">
                                   {cls.description}
                                 </p>
-                              </div>
-
-                              <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400">
-                                <span>
-                                  Edad: <strong className="text-zinc-200 font-medium">{cls.recommendedAge}</strong>
-                                </span>
-                                <span className={isSelected ? 'text-white font-semibold' : 'text-zinc-500'}>
-                                  {isSelected ? 'Seleccionada' : 'Elegir'}
-                                </span>
                               </div>
                             </button>
                           );
@@ -788,20 +906,20 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       </div>
                     </div>
 
-                    {/* 1B: Instructor Selection */}
-                    <div className="pt-8 border-t border-white/10">
-                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5">
+                    {/* 1B: Instructor Selector (Compact & Clear) */}
+                    <div className="pt-6 border-t border-white/10">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3.5">
                         <div>
-                          <h3 className="text-xl sm:text-2xl font-serif font-bold text-white">
-                            ¿Con qué profesor prefieres asistir?
+                          <h3 className="text-lg sm:text-xl font-serif font-bold text-white">
+                            Preferencia de profesor
                           </h3>
-                          <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-                            Elige un especialista o selecciona &ldquo;Cualquier Profesor&rdquo; para ver los 7 días de la semana.
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            &ldquo;Cualquier Profesor&rdquo; te muestra horarios libres los 7 días de la semana.
                           </p>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         {INSTRUCTORS.map((inst) => {
                           const isSelected = selectedInstructor.id === inst.id;
                           const imgFailed = brokenImages[inst.id];
@@ -810,63 +928,50 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                               key={inst.id}
                               type="button"
                               onClick={() => setSelectedInstructor(inst)}
-                              className={`group text-left p-4 rounded-xl border transition-all flex items-start gap-4 ${
+                              className={`group text-left p-3 rounded-xl border transition-all flex items-center gap-3 min-h-[68px] ${
                                 isSelected
-                                  ? 'bg-[#21181B] border-[#D21923] shadow-lg shadow-[#D21923]/10'
+                                  ? 'bg-[#21181B] border-[#D21923]'
                                   : 'bg-[#141416] border-white/10 hover:border-white/25 hover:bg-[#18181B]'
                               }`}
                             >
-                              {/* Portrait with resilient fallback */}
-                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-[#222226] border border-white/10 shrink-0 flex items-center justify-center">
+                              <div className="w-11 h-11 rounded-lg overflow-hidden bg-[#222226] border border-white/10 shrink-0 flex items-center justify-center">
                                 {!imgFailed ? (
                                   <img
                                     src={inst.photoUrl}
                                     alt={inst.name}
                                     referrerPolicy="no-referrer"
                                     onError={() =>
-                                      setBrokenImages((prev) => ({ ...prev, [inst.id]: true }))
+                                      setBrokenImages((prev) => ({
+                                        ...prev,
+                                        [inst.id]: true,
+                                      }))
                                     }
-                                    className={`w-full h-full object-cover transition-transform duration-300 ${
-                                      isSelected ? 'scale-105' : 'group-hover:scale-105'
-                                    }`}
+                                    className="w-full h-full object-cover"
                                   />
                                 ) : (
-                                  <span className="text-sm font-serif font-bold text-zinc-300">
+                                  <span className="text-xs font-serif font-bold text-zinc-300">
                                     {getInitials(inst.name)}
                                   </span>
                                 )}
                               </div>
 
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <h4 className="text-sm sm:text-base font-serif font-bold text-white truncate">
-                                      {inst.name}
-                                    </h4>
-                                    <p className="text-xs text-[#D21923] font-medium truncate">
-                                      {inst.title}
-                                    </p>
-                                  </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <h4 className="text-xs sm:text-sm font-semibold text-white truncate">
+                                    {inst.name}
+                                  </h4>
                                   <span
-                                    className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
+                                    className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                                       isSelected
                                         ? 'border-[#D21923] bg-[#D21923] text-white'
                                         : 'border-white/25 group-hover:border-white/50'
                                     }`}
                                   >
-                                    {isSelected && <Check className="w-3 h-3" />}
+                                    {isSelected && <Check className="w-2.5 h-2.5" />}
                                   </span>
                                 </div>
-
-                                <p className="text-xs text-zinc-400 mt-1.5 line-clamp-2 leading-relaxed">
-                                  {inst.specialty}
-                                </p>
-
-                                <p className="text-[11px] text-zinc-300 mt-2.5 flex items-center gap-1.5">
-                                  <CalendarIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                  <span className="truncate">
-                                    {formatInstructorDaysSummary(inst.availableDays)}
-                                  </span>
+                                <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                                  {inst.title} · {formatInstructorDaysSummary(inst.availableDays)}
                                 </p>
                               </div>
                             </button>
@@ -875,367 +980,405 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       </div>
                     </div>
 
-                    {/* Step 1 Footer CTA */}
-                    <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <span className="text-xs text-zinc-400 hidden sm:inline">
-                        Paso 1 de 3 · Podrás cambiar tu elección en cualquier momento
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentStep(2)}
-                        className="w-full sm:w-auto sm:ml-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors shadow-lg shadow-[#D21923]/20"
-                      >
-                        <span>Ver fechas disponibles</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ====================================================== */}
-                {/* STAGE 2: CALENDARIO VISUAL Y HORARIOS EN VIVO          */}
-                {/* ====================================================== */}
-                {currentStep === 2 && (
-                  <div className="space-y-8 animate-in fade-in duration-200">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <h3 className="text-xl sm:text-2xl font-serif font-bold text-white">
-                          Elige el día y la hora ideal
-                        </h3>
-                        <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-                          Disponibilidad en tiempo real para{' '}
-                          <strong className="text-white font-medium">{selectedInstructor.name}</strong>.
-                        </p>
-                      </div>
-                      <span className="text-xs font-medium text-zinc-300 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 self-start sm:self-auto">
-                        {calendarMonthHeading}
-                      </span>
-                    </div>
-
-                    {/* Mobile compact selection strip */}
-                    <div className="lg:hidden flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[#141416] border border-white/10 text-xs">
-                      <span className="text-zinc-300 truncate">
-                        <strong className="text-white">{selectedClassType.name}</strong> · {selectedInstructor.name}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentStep(1)}
-                        className="text-[#D21923] font-semibold shrink-0"
-                      >
-                        Editar
-                      </button>
-                    </div>
-
-                    {/* Helper notice if instructor doesn't work all 7 days */}
-                    {selectedInstructor.id !== 'inst-cualquiera' && (
-                      <div className="p-3.5 rounded-xl bg-[#141416] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2.5 text-zinc-300">
-                          <Info className="w-4 h-4 text-[#D21923] shrink-0" />
-                          <span>
-                            Este profesor atiende: <strong className="text-white">{formatInstructorDaysSummary(selectedInstructor.availableDays)}</strong>.
-                          </span>
+                    {/* 1C: Live Date & Time Selector in Same View */}
+                    <div className="pt-6 border-t border-white/10 space-y-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg sm:text-xl font-serif font-bold text-white">
+                            Elige día y horario disponible
+                          </h3>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            Mostrando disponibilidad en vivo para{' '}
+                            <strong className="text-zinc-200 font-medium">
+                              {selectedInstructor.name}
+                            </strong>
+                            .
+                          </p>
                         </div>
+
                         <button
                           type="button"
-                          onClick={() => setSelectedInstructor(anyInstructor)}
-                          className="text-xs font-semibold text-[#D21923] hover:text-white transition-colors self-start sm:self-auto whitespace-nowrap shrink-0 underline underline-offset-4"
+                          onClick={handlePickEarliestSlot}
+                          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/15 hover:border-[#D21923]/60 text-xs font-medium text-zinc-200 transition-colors self-start sm:self-auto whitespace-nowrap shrink-0"
                         >
-                          Ver los 7 días con cualquier profesor
+                          <Zap className="w-3.5 h-3.5 text-[#D21923] shrink-0" />
+                          <span>Siguiente cupo libre</span>
                         </button>
                       </div>
-                    )}
 
-                    {/* Proper Weekday-Aligned Calendar Grid */}
-                    <div>
-                      <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center">
-                        {WEEKDAY_HEADERS_MON.map((wd) => (
-                          <div
-                            key={wd}
-                            className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-zinc-500 py-1"
+                      {selectedInstructor.id !== 'inst-cualquiera' && (
+                        <div className="p-3 rounded-xl bg-[#141416] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                          <span className="text-zinc-300">
+                            Atiende:{' '}
+                            <strong className="text-white">
+                              {formatInstructorDaysSummary(selectedInstructor.availableDays)}
+                            </strong>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInstructor(anyInstructor)}
+                            className="text-xs font-semibold text-[#D21923] hover:text-white transition-colors self-start sm:self-auto whitespace-nowrap underline underline-offset-4"
                           >
-                            {wd}
+                            Ver todos los días con cualquier profesor
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Week Switcher + Roomy 7-Day Strip */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="inline-flex items-center p-1 rounded-lg bg-[#121214] border border-white/10 overflow-x-auto max-w-full">
+                            {weekTabs.map((wk) => (
+                              <button
+                                key={wk.index}
+                                type="button"
+                                onClick={() => setWeekIndex(wk.index)}
+                                className={`px-3 py-1.5 min-h-[36px] rounded-md text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
+                                  weekIndex === wk.index
+                                    ? 'bg-white/15 text-white'
+                                    : 'text-zinc-400 hover:text-white'
+                                }`}
+                              >
+                                {wk.label}
+                              </button>
+                            ))}
                           </div>
-                        ))}
+
+                          <div className="hidden sm:flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={weekIndex === 0}
+                              onClick={() =>
+                                setWeekIndex((prev) => Math.max(0, prev - 1) as 0 | 1 | 2)
+                              }
+                              aria-label="Semana anterior"
+                              className="min-w-[36px] min-h-[36px] rounded-lg border border-white/10 bg-[#141416] flex items-center justify-center text-zinc-300 hover:text-white disabled:opacity-35"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={weekIndex === 2}
+                              onClick={() =>
+                                setWeekIndex((prev) => Math.min(2, prev + 1) as 0 | 1 | 2)
+                              }
+                              aria-label="Semana siguiente"
+                              className="min-w-[36px] min-h-[36px] rounded-lg border border-white/10 bg-[#141416] flex items-center justify-center text-zinc-300 hover:text-white disabled:opacity-35"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 overflow-x-auto pb-1">
+                          {visibleWeekDays.map((day) => {
+                            const worksThisDay = isInstructorAvailableOnDay(
+                              day,
+                              selectedInstructor
+                            );
+                            const openCount = getAvailableSlotsCountForDay(
+                              day,
+                              selectedInstructor
+                            );
+                            const isSelected = selectedDate.iso === day.iso;
+                            const isDisabled = !worksThisDay || openCount === 0;
+
+                            return (
+                              <button
+                                key={day.iso}
+                                type="button"
+                                disabled={isDisabled}
+                                onClick={() => setSelectedDateIso(day.iso)}
+                                aria-label={`${day.formattedPretty}, ${
+                                  !worksThisDay
+                                    ? 'profesor no atiende este día'
+                                    : openCount === 0
+                                    ? 'sin cupos'
+                                    : `${openCount} horarios disponibles`
+                                }`}
+                                className={`min-w-[44px] min-h-[72px] sm:min-h-[82px] px-1 py-2 sm:p-2.5 rounded-xl border transition-all flex flex-col items-center justify-between ${
+                                  isDisabled
+                                    ? 'bg-[#121214] border-white/5 text-zinc-600 cursor-not-allowed opacity-55'
+                                    : isSelected
+                                    ? 'bg-[#D21923] border-[#D21923] text-white shadow-lg shadow-[#D21923]/25'
+                                    : 'bg-[#141416] border-white/10 text-zinc-200 hover:border-white/35 hover:bg-[#1E1E22]'
+                                }`}
+                              >
+                                <span
+                                  className={`text-[10px] uppercase tracking-wider font-medium ${
+                                    isSelected ? 'text-white/90' : 'text-zinc-400'
+                                  }`}
+                                >
+                                  {day.relativeLabel && weekIndex === 0
+                                    ? 'Mañ.'
+                                    : day.dayOfWeekShort}
+                                </span>
+
+                                <span className="text-base sm:text-xl font-bold tabular-nums leading-none">
+                                  {day.dayNum}
+                                </span>
+
+                                <span
+                                  className={`text-[10px] font-medium truncate max-w-full tabular-nums ${
+                                    isSelected
+                                      ? 'text-white'
+                                      : !worksThisDay
+                                      ? 'text-zinc-600'
+                                      : openCount === 0
+                                      ? 'text-zinc-500'
+                                      : 'text-zinc-400'
+                                  }`}
+                                >
+                                  {!worksThisDay
+                                    ? '—'
+                                    : openCount === 0
+                                    ? 'Lleno'
+                                    : `${openCount} disp.`}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                        {/* Empty alignment cells so columns match actual weekdays */}
-                        {Array.from({ length: leadingEmptyDays }).map((_, idx) => (
-                          <div key={`empty-${idx}`} className="min-h-[62px] sm:min-h-[76px] rounded-lg bg-white/[0.015]" />
-                        ))}
+                      {/* Time Slots grouped cleanly by Mañana / Tarde */}
+                      <div className="pt-4 border-t border-white/10 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <h4 className="text-sm font-semibold text-white capitalize flex items-center gap-2">
+                            <CalendarIcon className="w-4 h-4 text-[#D21923] shrink-0" />
+                            <span>Horarios · {selectedDate.formattedPretty}</span>
+                          </h4>
+                          <span className="text-xs text-zinc-400 tabular-nums">
+                            Duración: {selectedClassType.duration}
+                          </span>
+                        </div>
 
-                        {upcomingDays.map((day) => {
-                          const worksThisDay = isInstructorAvailableOnDay(day, selectedInstructor);
-                          const openCount = getAvailableSlotsCountForDay(day, selectedInstructor);
-                          const isSelected = selectedDate.iso === day.iso;
-                          const isDisabled = !worksThisDay || openCount === 0;
-                          const showMonthTag = day.dayNum === 1 || day.iso === upcomingDays[0].iso;
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Morning */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                              <Sun className="w-3.5 h-3.5 text-[#D21923]" />
+                              <span>Mañana</span>
+                            </div>
+                            <div className="space-y-2">
+                              {morningSlots.map((slot) => {
+                                const occupied = isSlotOccupied(
+                                  selectedDate.iso,
+                                  slot.time,
+                                  selectedInstructor.id
+                                );
+                                const isSelected =
+                                  selectedTimeSlot === slot.time && !occupied;
 
-                          return (
-                            <button
-                              key={day.iso}
-                              type="button"
-                              disabled={isDisabled}
-                              onClick={() => setSelectedDateIso(day.iso)}
-                              aria-label={`${day.formattedPretty}, ${
-                                !worksThisDay
-                                  ? 'profesor no atiende este día'
-                                  : openCount === 0
-                                  ? 'sin cupos'
-                                  : `${openCount} horarios disponibles`
-                              }`}
-                              className={`min-h-[62px] sm:min-h-[76px] px-1 py-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border transition-all flex flex-col items-center justify-between relative ${
-                                isDisabled
-                                  ? 'bg-[#121214] border-white/5 text-zinc-600 cursor-not-allowed opacity-55'
-                                  : isSelected
-                                  ? 'bg-[#D21923] border-[#D21923] text-white shadow-lg shadow-[#D21923]/25'
-                                  : 'bg-[#141416] border-white/10 text-zinc-200 hover:border-white/35 hover:bg-[#1E1E22]'
-                              }`}
-                            >
-                              <span
-                                className={`text-[9px] sm:text-[10px] uppercase tracking-wider font-medium ${
-                                  isSelected
-                                    ? 'text-white/90'
-                                    : showMonthTag
-                                    ? 'text-[#D21923]'
-                                    : 'text-zinc-500'
-                                }`}
-                              >
-                                {showMonthTag ? day.monthShort : day.dayOfWeekShort}
-                              </span>
+                                return (
+                                  <button
+                                    key={slot.time}
+                                    type="button"
+                                    disabled={occupied}
+                                    onClick={() => setSelectedTimeSlot(slot.time)}
+                                    className={`w-full min-h-[48px] px-4 py-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-3 ${
+                                      occupied
+                                        ? 'bg-[#121214] border-white/5 text-zinc-600 cursor-not-allowed'
+                                        : isSelected
+                                        ? 'bg-[#21181B] border-[#D21923] text-white shadow-md'
+                                        : 'bg-[#141416] border-white/10 text-zinc-200 hover:border-white/30'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <Clock
+                                        className={`w-4 h-4 shrink-0 ${
+                                          occupied
+                                            ? 'text-zinc-600'
+                                            : isSelected
+                                            ? 'text-[#D21923]'
+                                            : 'text-zinc-400'
+                                        }`}
+                                      />
+                                      <span
+                                        className={`text-sm font-mono font-semibold tabular-nums ${
+                                          occupied ? 'line-through' : ''
+                                        }`}
+                                      >
+                                        {slot.time}
+                                      </span>
+                                    </div>
 
-                              <span className="text-sm sm:text-lg font-bold tabular-nums leading-none">
-                                {day.dayNum}
-                              </span>
+                                    {occupied ? (
+                                      <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                                        <Lock className="w-3 h-3" />
+                                        <span>Ocupado</span>
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`text-xs font-medium ${
+                                          isSelected
+                                            ? 'text-[#D21923]'
+                                            : slot.popular
+                                            ? 'text-zinc-300'
+                                            : 'text-zinc-400'
+                                        }`}
+                                      >
+                                        {isSelected
+                                          ? 'Elegido'
+                                          : slot.popular
+                                          ? 'Recomendado'
+                                          : 'Disponible'}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
 
-                              <span
-                                className={`text-[9px] sm:text-[10px] font-medium truncate max-w-full ${
-                                  isSelected
-                                    ? 'text-white'
-                                    : !worksThisDay
-                                    ? 'text-zinc-600'
-                                    : openCount === 0
-                                    ? 'text-zinc-500'
-                                    : 'text-zinc-400'
-                                }`}
-                              >
-                                {!worksThisDay ? '—' : openCount === 0 ? 'Lleno' : `${openCount} lib.`}
-                              </span>
-                            </button>
-                          );
-                        })}
+                          {/* Afternoon */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                              <Sunset className="w-3.5 h-3.5 text-[#D21923]" />
+                              <span>Tarde</span>
+                            </div>
+                            <div className="space-y-2">
+                              {afternoonSlots.map((slot) => {
+                                const occupied = isSlotOccupied(
+                                  selectedDate.iso,
+                                  slot.time,
+                                  selectedInstructor.id
+                                );
+                                const isSelected =
+                                  selectedTimeSlot === slot.time && !occupied;
+
+                                return (
+                                  <button
+                                    key={slot.time}
+                                    type="button"
+                                    disabled={occupied}
+                                    onClick={() => setSelectedTimeSlot(slot.time)}
+                                    className={`w-full min-h-[48px] px-4 py-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-3 ${
+                                      occupied
+                                        ? 'bg-[#121214] border-white/5 text-zinc-600 cursor-not-allowed'
+                                        : isSelected
+                                        ? 'bg-[#21181B] border-[#D21923] text-white shadow-md'
+                                        : 'bg-[#141416] border-white/10 text-zinc-200 hover:border-white/30'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <Clock
+                                        className={`w-4 h-4 shrink-0 ${
+                                          occupied
+                                            ? 'text-zinc-600'
+                                            : isSelected
+                                            ? 'text-[#D21923]'
+                                            : 'text-zinc-400'
+                                        }`}
+                                      />
+                                      <span
+                                        className={`text-sm font-mono font-semibold tabular-nums ${
+                                          occupied ? 'line-through' : ''
+                                        }`}
+                                      >
+                                        {slot.time}
+                                      </span>
+                                    </div>
+
+                                    {occupied ? (
+                                      <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                                        <Lock className="w-3 h-3" />
+                                        <span>Ocupado</span>
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`text-xs font-medium ${
+                                          isSelected
+                                            ? 'text-[#D21923]'
+                                            : slot.popular
+                                            ? 'text-zinc-300'
+                                            : 'text-zinc-400'
+                                        }`}
+                                      >
+                                        {isSelected
+                                          ? 'Elegido'
+                                          : slot.popular
+                                          ? 'Recomendado'
+                                          : 'Disponible'}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {(selectedSlotOccupied || selectedDayUnavailableForInstructor) && (
+                          <div className="p-3.5 rounded-xl bg-[#D21923]/15 border border-[#D21923] text-xs text-white flex items-center gap-2.5">
+                            <AlertCircle className="w-4 h-4 text-[#D21923] shrink-0" />
+                            <span>
+                              {selectedDayUnavailableForInstructor
+                                ? `${selectedInstructor.name} no atiende este día. Elige otro día o usa "Siguiente cupo libre".`
+                                : `Este horario acaba de ser ocupado con ${selectedInstructor.name}. Elige otra franja libre.`}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Time Slots grouped cleanly by Mañana / Tarde */}
-                    <div className="pt-6 border-t border-white/10 space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                          <h4 className="text-sm font-semibold text-white capitalize flex items-center gap-2">
-                            <CalendarIcon className="w-4 h-4 text-[#D21923]" />
-                            <span>Horarios para el {selectedDate.formattedPretty}</span>
-                          </h4>
-                        </div>
-                        <span className="text-xs text-zinc-400">
-                          Sesión de {selectedClassType.duration}
+                    {/* Step 1 Footer CTA */}
+                    <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="text-xs text-zinc-300 min-w-0">
+                        <span className="text-zinc-500 block sm:inline">Tu selección: </span>
+                        <strong className="text-white font-semibold">
+                          {selectedClassType.name}
+                        </strong>
+                        <span aria-hidden="true"> · </span>
+                        <span className="capitalize">{selectedDate.dayOfWeekShort} {selectedDate.dayNum} {selectedDate.monthShort}</span>
+                        <span aria-hidden="true"> · </span>
+                        <span className="font-mono text-[#D21923] font-semibold tabular-nums">
+                          {selectedTimeSlot}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Morning */}
-                        <div className="space-y-2.5">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                            <Sun className="w-3.5 h-3.5 text-[#D21923]" />
-                            <span>Mañana</span>
-                          </div>
-                          <div className="space-y-2">
-                            {morningSlots.map((slot) => {
-                              const occupied = isSlotOccupied(
-                                selectedDate.iso,
-                                slot.time,
-                                selectedInstructor.id
-                              );
-                              const isSelected = selectedTimeSlot === slot.time && !occupied;
-
-                              return (
-                                <button
-                                  key={slot.time}
-                                  type="button"
-                                  disabled={occupied}
-                                  onClick={() => setSelectedTimeSlot(slot.time)}
-                                  className={`w-full min-h-[52px] px-4 py-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3 ${
-                                    occupied
-                                      ? 'bg-[#121214] border-white/5 text-zinc-600 cursor-not-allowed'
-                                      : isSelected
-                                      ? 'bg-[#21181B] border-[#D21923] text-white shadow-md'
-                                      : 'bg-[#141416] border-white/10 text-zinc-200 hover:border-white/30'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <Clock
-                                      className={`w-4 h-4 shrink-0 ${
-                                        occupied
-                                          ? 'text-zinc-600'
-                                          : isSelected
-                                          ? 'text-[#D21923]'
-                                          : 'text-zinc-400'
-                                      }`}
-                                    />
-                                    <span
-                                      className={`text-sm font-mono font-semibold tabular-nums ${
-                                        occupied ? 'line-through' : ''
-                                      }`}
-                                    >
-                                      {slot.time}
-                                    </span>
-                                  </div>
-
-                                  {occupied ? (
-                                    <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
-                                      <Lock className="w-3 h-3" />
-                                      <span>Ocupado</span>
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={`text-xs font-medium ${
-                                        isSelected
-                                          ? 'text-[#D21923]'
-                                          : slot.popular
-                                          ? 'text-zinc-300'
-                                          : 'text-zinc-400'
-                                      }`}
-                                    >
-                                      {isSelected
-                                        ? 'Elegido'
-                                        : slot.popular
-                                        ? 'Recomendado'
-                                        : 'Disponible'}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Afternoon */}
-                        <div className="space-y-2.5">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                            <Sunset className="w-3.5 h-3.5 text-[#D21923]" />
-                            <span>Tarde</span>
-                          </div>
-                          <div className="space-y-2">
-                            {afternoonSlots.map((slot) => {
-                              const occupied = isSlotOccupied(
-                                selectedDate.iso,
-                                slot.time,
-                                selectedInstructor.id
-                              );
-                              const isSelected = selectedTimeSlot === slot.time && !occupied;
-
-                              return (
-                                <button
-                                  key={slot.time}
-                                  type="button"
-                                  disabled={occupied}
-                                  onClick={() => setSelectedTimeSlot(slot.time)}
-                                  className={`w-full min-h-[52px] px-4 py-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3 ${
-                                    occupied
-                                      ? 'bg-[#121214] border-white/5 text-zinc-600 cursor-not-allowed'
-                                      : isSelected
-                                      ? 'bg-[#21181B] border-[#D21923] text-white shadow-md'
-                                      : 'bg-[#141416] border-white/10 text-zinc-200 hover:border-white/30'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <Clock
-                                      className={`w-4 h-4 shrink-0 ${
-                                        occupied
-                                          ? 'text-zinc-600'
-                                          : isSelected
-                                          ? 'text-[#D21923]'
-                                          : 'text-zinc-400'
-                                      }`}
-                                    />
-                                    <span
-                                      className={`text-sm font-mono font-semibold tabular-nums ${
-                                        occupied ? 'line-through' : ''
-                                      }`}
-                                    >
-                                      {slot.time}
-                                    </span>
-                                  </div>
-
-                                  {occupied ? (
-                                    <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
-                                      <Lock className="w-3 h-3" />
-                                      <span>Ocupado</span>
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={`text-xs font-medium ${
-                                        isSelected
-                                          ? 'text-[#D21923]'
-                                          : slot.popular
-                                          ? 'text-zinc-300'
-                                          : 'text-zinc-400'
-                                      }`}
-                                    >
-                                      {isSelected
-                                        ? 'Elegido'
-                                        : slot.popular
-                                        ? 'Recomendado'
-                                        : 'Disponible'}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {(selectedSlotOccupied || selectedDayUnavailableForInstructor) && (
-                        <div className="p-4 rounded-xl bg-[#D21923]/15 border border-[#D21923] text-xs text-white flex items-center gap-2.5">
-                          <AlertCircle className="w-4 h-4 text-[#D21923] shrink-0" />
-                          <span>
-                            {selectedDayUnavailableForInstructor
-                              ? `${selectedInstructor.name} no atiende este día. Selecciona otro día en el calendario o cambia a "Cualquier Profesor".`
-                              : `Este horario acaba de ser ocupado con ${selectedInstructor.name}. Elige otra franja disponible.`}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Step 2 Actions */}
-                    <div className="pt-6 border-t border-white/10 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
                       <button
                         type="button"
-                        onClick={() => setCurrentStep(1)}
-                        className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                        disabled={
+                          selectedSlotOccupied || selectedDayUnavailableForInstructor
+                        }
+                        onClick={() => handleGoToStep(2)}
+                        className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors shadow-lg shadow-[#D21923]/20 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
                       >
-                        <ChevronLeft className="w-4 h-4" />
-                        <span>Cambiar clase</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={selectedSlotOccupied || selectedDayUnavailableForInstructor}
-                        onClick={() => setCurrentStep(3)}
-                        className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors shadow-lg shadow-[#D21923]/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <span>Completar datos del jinete</span>
-                        <ArrowRight className="w-4 h-4" />
+                        <span>Continuar con tus datos</span>
+                        <ArrowRight className="w-4 h-4 shrink-0" />
                       </button>
                     </div>
                   </div>
                 )}
 
                 {/* ====================================================== */}
-                {/* STAGE 3: DATOS DEL JINETE Y CONFIRMACIÓN               */}
+                {/* STAGE 2: DATOS DEL JINETE Y CONFIRMACIÓN               */}
                 {/* ====================================================== */}
-                {currentStep === 3 && (
-                  <div className="space-y-8 animate-in fade-in duration-200">
+                {currentStep === 2 && (
+                  <div className="space-y-7">
+                    {/* Quick editable context banner */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#141416] border border-white/10 text-xs">
+                      <div className="min-w-0">
+                        <span className="text-zinc-400 block">Sesión seleccionada</span>
+                        <p className="text-white font-semibold truncate mt-0.5">
+                          {selectedClassType.name} ·{' '}
+                          <span className="capitalize">{selectedDate.formattedPretty}</span>{' '}
+                          ·{' '}
+                          <span className="text-[#D21923] font-mono tabular-nums">
+                            {selectedTimeSlot}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleGoToStep(1)}
+                        className="text-xs font-semibold text-[#D21923] hover:text-white transition-colors self-start sm:self-center shrink-0 whitespace-nowrap"
+                      >
+                        Cambiar horario
+                      </button>
+                    </div>
+
                     <div>
                       <h3 className="text-xl sm:text-2xl font-serif font-bold text-white">
                         Datos del alumno y contacto
@@ -1243,21 +1386,6 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       <p className="text-xs sm:text-sm text-zinc-400 mt-1">
                         Con esta información asignamos el caballo idóneo y alistamos casco y chaleco a tu medida.
                       </p>
-                    </div>
-
-                    {/* Mobile compact selection strip */}
-                    <div className="lg:hidden flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[#141416] border border-white/10 text-xs">
-                      <span className="text-zinc-300 truncate capitalize">
-                        <strong className="text-white">{selectedDate.formattedPretty}</strong> ·{' '}
-                        <span className="text-[#D21923] font-mono">{selectedTimeSlot}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentStep(2)}
-                        className="text-[#D21923] font-semibold shrink-0"
-                      >
-                        Editar
-                      </button>
                     </div>
 
                     {/* Group 1: Rider details */}
@@ -1271,12 +1399,15 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             Nombre del alumno <span className="text-[#D21923]">*</span>
                           </label>
                           <input
+                            ref={studentNameInputRef}
                             id="booking-student-name"
                             type="text"
                             value={studentName}
                             onChange={(e) => {
                               setStudentName(e.target.value);
-                              if (errors.studentName) setErrors({ ...errors, studentName: '' });
+                              if (errors.studentName) {
+                                setErrors({ ...errors, studentName: '' });
+                              }
                             }}
                             placeholder="Ej. Mateo Gómez"
                             className={`w-full px-4 py-3 min-h-[46px] rounded-lg bg-[#141416] border text-white text-base sm:text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#D21923]/60 ${
@@ -1284,7 +1415,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             }`}
                           />
                           {errors.studentName && (
-                            <p className="text-xs text-[#D21923] mt-1.5">{errors.studentName}</p>
+                            <p className="text-xs text-[#D21923] mt-1.5">
+                              {errors.studentName}
+                            </p>
                           )}
                         </div>
 
@@ -1301,7 +1434,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             value={studentAge}
                             onChange={(e) => {
                               setStudentAge(e.target.value);
-                              if (errors.studentAge) setErrors({ ...errors, studentAge: '' });
+                              if (errors.studentAge) {
+                                setErrors({ ...errors, studentAge: '' });
+                              }
                             }}
                             placeholder="Ej. 8 años"
                             className={`w-full px-4 py-3 min-h-[46px] rounded-lg bg-[#141416] border text-white text-base sm:text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#D21923]/60 ${
@@ -1309,12 +1444,14 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             }`}
                           />
                           {errors.studentAge && (
-                            <p className="text-xs text-[#D21923] mt-1.5">{errors.studentAge}</p>
+                            <p className="text-xs text-[#D21923] mt-1.5">
+                              {errors.studentAge}
+                            </p>
                           )}
                         </div>
                       </div>
 
-                      {/* Interactive Experience Level Selector */}
+                      {/* Experience Level Selector */}
                       <div>
                         <span className="block text-xs font-semibold text-zinc-200 mb-2">
                           Experiencia previa con caballos
@@ -1333,7 +1470,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                                     : 'bg-[#141416] border-white/10 text-zinc-300 hover:border-white/30'
                                 }`}
                               >
-                                <span className="text-xs font-semibold block">{opt.shortLabel}</span>
+                                <span className="text-xs font-semibold block">
+                                  {opt.shortLabel}
+                                </span>
                                 <span className="text-[11px] text-zinc-400 block mt-0.5 leading-snug">
                                   {opt.hint}
                                 </span>
@@ -1368,7 +1507,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             }`}
                           />
                           {errors.phone && (
-                            <p className="text-xs text-[#D21923] mt-1.5">{errors.phone}</p>
+                            <p className="text-xs text-[#D21923] mt-1.5">
+                              {errors.phone}
+                            </p>
                           )}
                         </div>
 
@@ -1393,7 +1534,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             }`}
                           />
                           {errors.email && (
-                            <p className="text-xs text-[#D21923] mt-1.5">{errors.email}</p>
+                            <p className="text-xs text-[#D21923] mt-1.5">
+                              {errors.email}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1405,7 +1548,11 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         >
                           Nombre del acudiente o acompañante{' '}
                           <span className="text-zinc-400 font-normal">
-                            ({isLikelyMinor ? 'Recomendado para menor de edad' : 'Opcional si el alumno es adulto'})
+                            (
+                            {isLikelyMinor
+                              ? 'Recomendado para menor de edad'
+                              : 'Opcional si el alumno es adulto'}
+                            )
                           </span>
                         </label>
                         <input
@@ -1419,18 +1566,17 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       </div>
 
                       <div>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
-                          <label
-                            htmlFor="booking-notes"
-                            className="block text-xs font-semibold text-zinc-200"
-                          >
-                            Notas para tu instructor{' '}
-                            <span className="text-zinc-400 font-normal">(opcional)</span>
-                          </label>
-                        </div>
+                        <label
+                          htmlFor="booking-notes"
+                          className="block text-xs font-semibold text-zinc-200 mb-1.5"
+                        >
+                          Notas para tu instructor{' '}
+                          <span className="text-zinc-400 font-normal">(opcional)</span>
+                        </label>
                         <textarea
                           id="booking-notes"
                           rows={2}
+                          maxLength={600}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
                           placeholder="¿Algo que debamos tener en cuenta? (nervios iniciales, objetivos, talla aproximada...)"
@@ -1441,11 +1587,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             <button
                               key={suggestion}
                               type="button"
-                              onClick={() =>
-                                setNotes((prev) =>
-                                  prev.trim() ? `${prev.trim()}. ${suggestion}` : suggestion
-                                )
-                              }
+                              onClick={() => toggleNoteSuggestion(suggestion)}
                               className="text-[11px] text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-md px-3 py-1.5 min-h-[36px] transition-colors"
                             >
                               + {suggestion}
@@ -1457,11 +1599,14 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       <div>
                         <label className="flex items-start gap-3 cursor-pointer p-3.5 rounded-xl bg-[#141416] border border-white/10 hover:border-white/25 transition-colors">
                           <input
+                            id="booking-consent"
                             type="checkbox"
                             checked={consentData}
                             onChange={(e) => {
                               setConsentData(e.target.checked);
-                              if (errors.consentData) setErrors({ ...errors, consentData: '' });
+                              if (errors.consentData) {
+                                setErrors({ ...errors, consentData: '' });
+                              }
                             }}
                             className="mt-0.5 w-4 h-4 rounded bg-[#141416] border-white/25 text-[#D21923] focus:ring-[#D21923]"
                           />
@@ -1470,7 +1615,9 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                           </span>
                         </label>
                         {errors.consentData && (
-                          <p className="text-xs text-[#D21923] mt-1.5">{errors.consentData}</p>
+                          <p className="text-xs text-[#D21923] mt-1.5">
+                            {errors.consentData}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1485,29 +1632,31 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       </div>
                     )}
 
-                    {/* Step 3 Actions */}
+                    {/* Step 2 Actions */}
                     <div className="pt-6 border-t border-white/10 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
                       <button
                         type="button"
-                        onClick={() => setCurrentStep(2)}
-                        className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                        onClick={() => handleGoToStep(1)}
+                        className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors whitespace-nowrap"
                       >
-                        <ChevronLeft className="w-4 h-4" />
-                        <span>Cambiar horario</span>
+                        <ChevronLeft className="w-4 h-4 shrink-0" />
+                        <span>Volver a horarios</span>
                       </button>
 
                       <button
                         type="button"
                         disabled={isSubmitting || selectedSlotOccupied}
                         onClick={handleConfirmBooking}
-                        className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors shadow-xl shadow-[#D21923]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-xs font-semibold tracking-wider uppercase text-white bg-[#D21923] hover:bg-[#b8141d] transition-colors shadow-xl shadow-[#D21923]/25 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                       >
                         {isSubmitting ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                         ) : (
-                          <CheckCircle2 className="w-4 h-4" />
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
                         )}
-                        <span>{isSubmitting ? 'Registrando cita...' : 'Confirmar reserva'}</span>
+                        <span>
+                          {isSubmitting ? 'Registrando cita...' : 'Confirmar reserva'}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -1527,11 +1676,10 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                   </h3>
                 </div>
                 <span className="text-xs font-mono text-zinc-400 tabular-nums">
-                  Paso {currentStep}/3
+                  Paso {currentStep}/2
                 </span>
               </div>
 
-              {/* Selected Items List */}
               <div className="space-y-4 text-sm">
                 {/* 1. Class */}
                 <div className="flex items-start justify-between gap-3 pb-4 border-b border-white/10">
@@ -1549,7 +1697,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                   {currentStep !== 1 && (
                     <button
                       type="button"
-                      onClick={() => setCurrentStep(1)}
+                      onClick={() => handleGoToStep(1)}
                       className="text-xs text-[#D21923] hover:text-white font-medium shrink-0 transition-colors"
                     >
                       Cambiar
@@ -1567,7 +1715,10 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                           alt={selectedInstructor.name}
                           referrerPolicy="no-referrer"
                           onError={() =>
-                            setBrokenImages((prev) => ({ ...prev, [selectedInstructor.id]: true }))
+                            setBrokenImages((prev) => ({
+                              ...prev,
+                              [selectedInstructor.id]: true,
+                            }))
                           }
                           className="w-full h-full object-cover"
                         />
@@ -1587,7 +1738,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                   {currentStep !== 1 && (
                     <button
                       type="button"
-                      onClick={() => setCurrentStep(1)}
+                      onClick={() => handleGoToStep(1)}
                       className="text-xs text-[#D21923] hover:text-white font-medium shrink-0 transition-colors"
                     >
                       Cambiar
@@ -1606,22 +1757,22 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                     </p>
                     <p className="text-xs font-mono font-semibold text-[#D21923] mt-1 tabular-nums">
                       {selectedSlotOccupied || selectedDayUnavailableForInstructor
-                        ? 'Por confirmar en paso 2'
+                        ? 'Por elegir en el paso 1'
                         : selectedTimeSlot}
                     </p>
                   </div>
-                  {currentStep !== 2 && (
+                  {currentStep !== 1 && (
                     <button
                       type="button"
-                      onClick={() => setCurrentStep(2)}
+                      onClick={() => handleGoToStep(1)}
                       className="text-xs text-[#D21923] hover:text-white font-medium shrink-0 transition-colors"
                     >
-                      {currentStep === 1 ? 'Elegir' : 'Cambiar'}
+                      Cambiar
                     </button>
                   )}
                 </div>
 
-                {/* 4. Rider preview if typed */}
+                {/* 4. Rider preview */}
                 {studentName.trim() && (
                   <div className="pb-4 border-b border-white/10">
                     <span className="text-[11px] uppercase tracking-wider text-zinc-500 block">
@@ -1635,26 +1786,30 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 )}
               </div>
 
-              {/* Included highlights */}
               <ul className="space-y-2.5 text-xs text-zinc-300">
                 <li className="flex items-start gap-2.5">
                   <ShieldCheck className="w-4 h-4 text-[#D21923] shrink-0 mt-0.5" />
-                  <span>Casco homologado y chaleco de seguridad incluidos sin costo adicional.</span>
+                  <span>
+                    Casco homologado y chaleco de seguridad incluidos sin costo adicional.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Sparkles className="w-4 h-4 text-[#D21923] shrink-0 mt-0.5" />
-                  <span>Caballo asignado según la edad, talla y experiencia del alumno.</span>
+                  <span>
+                    Caballo asignado según la edad, talla y experiencia del alumno.
+                  </span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <ChevronRight className="w-4 h-4 text-[#D21923] shrink-0 mt-0.5" />
-                  <span>Confirmación directa y comprobante descargable para tu calendario.</span>
+                  <span>
+                    Confirmación directa y comprobante descargable para tu calendario.
+                  </span>
                 </li>
               </ul>
             </aside>
           </div>
         )}
 
-        {/* Web Push Subscription Widget for class availability & special events */}
         <PushNotificationWidget />
       </div>
     </section>

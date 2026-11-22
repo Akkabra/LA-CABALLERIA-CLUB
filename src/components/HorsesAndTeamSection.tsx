@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sparkles, Calendar, ChevronRight, User, PlusCircle } from 'lucide-react';
 import { HorseProfile, Instructor } from '../types';
 import { INSTRUCTORS } from '../data/clubData';
+import { ScrollReveal } from './FadeInSection';
 
 interface HorsesAndTeamSectionProps {
   horses: HorseProfile[];
@@ -31,7 +32,7 @@ export const HorsesAndTeamSection: React.FC<HorsesAndTeamSectionProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+        <ScrollReveal variant="up" className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div className="max-w-2xl">
             <div className="flex items-center gap-2 mb-2 text-xs font-mono uppercase tracking-widest text-[#D21923] font-bold">
               <span>El Plantel Noble</span>
@@ -67,7 +68,7 @@ export const HorsesAndTeamSection: React.FC<HorsesAndTeamSectionProps> = ({
               Equipo de Profesores ({displayInstructors.length})
             </button>
           </div>
-        </div>
+        </ScrollReveal>
 
         {/* VIEW 1: CABALLOS */}
         {activeTab === 'caballos' && (
@@ -111,11 +112,16 @@ export const HorsesAndTeamSection: React.FC<HorsesAndTeamSectionProps> = ({
 
             {/* Horses Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {filteredHorses.map((horse) => (
-                <div
+              {filteredHorses.map((horse, idx) => (
+                <ScrollReveal
                   key={horse.id}
-                  className="group bg-[#18181B] border border-white/10 hover:border-[#D21923]/60 flex flex-col justify-between overflow-hidden shadow-xl transition-all duration-300 hover:-translate-y-1"
+                  variant="up"
+                  delay={(idx % 4) * 80}
+                  className="h-full"
                 >
+                  <div
+                    className="h-full group bg-[#18181B] border border-white/10 hover:border-[#D21923]/60 flex flex-col justify-between overflow-hidden shadow-xl transition-all duration-300 hover:-translate-y-1"
+                  >
                   {/* Photo */}
                   <div className="relative h-64 overflow-hidden bg-black/40">
                     <img
@@ -172,7 +178,8 @@ export const HorsesAndTeamSection: React.FC<HorsesAndTeamSectionProps> = ({
                       </button>
                     </div>
                   </div>
-                </div>
+                  </div>
+                </ScrollReveal>
               ))}
             </div>
           </div>
@@ -180,12 +187,17 @@ export const HorsesAndTeamSection: React.FC<HorsesAndTeamSectionProps> = ({
 
         {/* VIEW 2: PROFESORES */}
         {activeTab === 'profesores' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 animate-in fade-in duration-200">
-            {displayInstructors.map((inst) => (
-              <div
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+            {displayInstructors.map((inst, idx) => (
+              <ScrollReveal
                 key={inst.id}
-                className="bg-[#18181B] border border-white/10 hover:border-[#D21923]/60 p-6 flex flex-col justify-between shadow-xl transition-all duration-300 group"
+                variant="up"
+                delay={(idx % 3) * 90}
+                className="h-full"
               >
+                <div
+                  className="h-full bg-[#18181B] border border-white/10 hover:border-[#D21923]/60 p-6 flex flex-col justify-between shadow-xl transition-all duration-300 group"
+                >
                 <div>
                   <div className="h-64 overflow-hidden bg-black/40 border border-white/10 mb-5 relative">
                     <img
@@ -228,7 +240,8 @@ export const HorsesAndTeamSection: React.FC<HorsesAndTeamSectionProps> = ({
                     <span>Agendar clase con {inst.name.split(' ')[1]}</span>
                   </button>
                 </div>
-              </div>
+                </div>
+              </ScrollReveal>
             ))}
           </div>
         )}

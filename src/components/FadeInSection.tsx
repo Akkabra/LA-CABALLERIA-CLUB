@@ -1,5 +1,106 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+export type ScrollRevealVariant = 'up' | 'down' | 'left' | 'right' | 'scale';
+
+interface ScrollRevealProps {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+  duration?: number;
+  variant?: ScrollRevealVariant;
+  distance?: number;
+  threshold?: number;
+}
+
+function getHiddenTransform(variant: ScrollRevealVariant, distance: number): string {
+  switch (variant) {
+    case 'up':
+      return `translate3d(0, ${distance}px, 0)`;
+    case 'down':
+      return `translate3d(0, -${distance}px, 0)`;
+    case 'left':
+      return `translate3d(${distance}px, 0, 0)`;
+    case 'right':
+      return `translate3d(-${distance}px, 0, 0)`;
+    case 'scale':
+      return 'translate3d(0, 18px, 0) scale(0.96)';
+  }
+}
+
+export const ScrollReveal: React.FC<ScrollRevealProps> = ({
+  children,
+  className = '',
+  delay = 0,
+  duration = 720,
+  variant = 'up',
+  distance = 28,
+  threshold = 0.03,
+}) => {
+  const [isVisible, setIsVisible] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
+  const domRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      setIsVisible(true);
+      return;
+    }
+
+    const currentRef = domRef.current;
+    if (!currentRef) return;
+
+    // Immediately reveal if already inside or above current viewport
+    const rect = currentRef.getBoundingClientRect();
+    if (rect.top <= window.innerHeight * 0.96) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting || entry.boundingClientRect.top <= window.innerHeight) {
+            setIsVisible(true);
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      {
+        threshold,
+        rootMargin: '0px 0px -24px 0px',
+      }
+    );
+
+    observer.observe(currentRef);
+
+    return () => {
+      observer.unobserve(currentRef);
+      observer.disconnect();
+    };
+  }, [threshold]);
+
+  return (
+    <div
+      ref={domRef}
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translate3d(0, 0, 0) scale(1)' : getHiddenTransform(variant, distance),
+        transitionProperty: 'opacity, transform',
+        transitionDuration: `${duration}ms`,
+        transitionDelay: `${delay}ms`,
+        transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        willChange: isVisible ? 'auto' : 'opacity, transform',
+      }}
+      className={`motion-reduce:!opacity-100 motion-reduce:!transform-none motion-reduce:!transition-none ${className}`}
+    >
+      {children}
+    </div>
+  );
+};
+
 interface FadeInSectionProps {
   children: React.ReactNode;
   className?: string;
@@ -11,57 +112,16 @@ export const FadeInSection: React.FC<FadeInSectionProps> = ({
   className = '',
   delay = 0,
 }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const domRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Check if user prefers reduced motion
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion) {
-      setIsVisible(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsVisible(true);
-            // Once visible, we can disconnect the observer for performance
-            if (domRef.current) observer.unobserve(domRef.current);
-          }
-        });
-      },
-      {
-        threshold: 0.12,
-        rootMargin: '0px 0px -50px 0px',
-      }
-    );
-
-    const currentRef = domRef.current;
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
-
-    return () => {
-      if (currentRef) observer.unobserve(currentRef);
-    };
-  }, []);
-
   return (
-    <div
-      ref={domRef}
-      style={{
-        transitionDuration: '750ms',
-        transitionDelay: `${delay}ms`,
-      }}
-      className={`transition-all motion-reduce:transition-none motion-reduce:transform-none ease-out ${
-        isVisible
-          ? 'opacity-100 translate-y-0'
-          : 'opacity-0 translate-y-8 motion-reduce:opacity-100 motion-reduce:translate-y-0'
-      } ${className}`}
+    <ScrollReveal
+      className={className}
+      delay={delay}
+      duration={760}
+      variant="up"
+      distance={32}
+      threshold={0.02}
     >
       {children}
-    </div>
+    </ScrollReveal>
   );
 };

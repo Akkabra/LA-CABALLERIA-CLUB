@@ -15,6 +15,7 @@ import {
 import { CLUB_INFO } from '../data/clubData';
 import { ContactFormData } from '../types';
 import { ClubLocationMap } from './ClubLocationMap';
+import { ScrollReveal } from './FadeInSection';
 
 interface ContactSectionProps {
   initialReason?: string;
@@ -110,7 +111,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
     <section id="contacto" className="py-16 sm:py-24 lg:py-28 bg-[#141416] relative border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Section Header */}
-        <div className="max-w-3xl mb-10 sm:mb-14">
+        <ScrollReveal variant="up" className="max-w-3xl mb-10 sm:mb-14">
           <div className="flex items-center gap-2 mb-3 text-xs tracking-widest uppercase font-semibold text-[#D21923]">
             <span>Atención Institucional</span>
             <span className="text-zinc-600">/</span>
@@ -124,11 +125,12 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
           <p className="text-sm sm:text-base text-zinc-300 leading-relaxed">
             Estamos a tu disposición para orientarte sobre nuestras clases formativas, visitas al club y programas para toda la familia.
           </p>
-        </div>
+        </ScrollReveal>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
           {/* Left Column: Form or Success Panel */}
-          <div className="lg:col-span-7 bg-[#1B1B1E] border border-white/10 p-6 sm:p-10 shadow-2xl relative">
+          <ScrollReveal variant="up" delay={60} className="lg:col-span-7">
+            <div className="h-full bg-[#1B1B1E] border border-white/10 p-6 sm:p-10 shadow-2xl relative">
             {isSubmitted && submittedData ? (
               <div className="py-8 text-center animate-in fade-in duration-300">
                 <div className="w-16 h-16 bg-[#D21923]/10 border border-[#D21923] rounded-full flex items-center justify-center mx-auto mb-6">
@@ -415,10 +417,11 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
                 </div>
               </form>
             )}
-          </div>
+            </div>
+          </ScrollReveal>
 
           {/* Right Column: Official Information & Ethical Disclaimers */}
-          <div className="lg:col-span-5 flex flex-col justify-between space-y-6">
+          <ScrollReveal variant="left" delay={140} className="lg:col-span-5 flex flex-col justify-between space-y-6">
             {/* Official Channels Card */}
             <div className="bg-[#1B1B1E] border border-white/10 p-6 sm:p-8">
               <h3 className="text-xl font-serif font-bold text-white mb-6">
@@ -506,13 +509,13 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
                 Los datos suministrados se utilizarán con estricta confidencialidad para responder a tus inquietudes sobre La Caballería Club de Equitación. No compartimos información con terceros.
               </div>
             </div>
-          </div>
+          </ScrollReveal>
         </div>
 
         {/* Interactive Club Location Map */}
-        <div className="mt-12 lg:mt-16">
+        <ScrollReveal variant="up" delay={100} className="mt-12 lg:mt-16">
           <ClubLocationMap />
-        </div>
+        </ScrollReveal>
       </div>
     </section>
   );

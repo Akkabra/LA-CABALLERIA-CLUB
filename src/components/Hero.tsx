@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { CLUB_INFO } from '../data/clubData';
 
@@ -32,6 +32,8 @@ const AMBIENT_EMBERS = [
 export const Hero: React.FC<HeroProps> = ({ onBookNow }) => {
   const [wordIndex, setWordIndex] = useState(0);
   const [isFading, setIsFading] = useState(false);
+  const bgImgRef = useRef<HTMLImageElement>(null);
+  const heroContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -51,6 +53,47 @@ export const Hero: React.FC<HeroProps> = ({ onBookNow }) => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) return;
+
+    let rafId = 0;
+
+    const applyParallax = () => {
+      rafId = 0;
+      const y = window.scrollY;
+      const vh = window.innerHeight || 800;
+      const clamped = Math.min(y, vh * 1.2);
+      const progress = Math.min(1, Math.max(0, y / (vh * 0.85)));
+
+      if (bgImgRef.current) {
+        const translateY = clamped * 0.18;
+        const scale = 1.02 + progress * 0.06;
+        bgImgRef.current.style.transform = `translate3d(0, ${translateY.toFixed(1)}px, 0) scale(${scale.toFixed(4)})`;
+      }
+
+      if (heroContentRef.current) {
+        const contentOffset = clamped * 0.12;
+        const opacity = Math.max(0.15, 1 - progress * 0.85);
+        heroContentRef.current.style.transform = `translate3d(0, ${contentOffset.toFixed(1)}px, 0)`;
+        heroContentRef.current.style.opacity = opacity.toFixed(3);
+      }
+    };
+
+    const onScroll = () => {
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(applyParallax);
+      }
+    };
+
+    applyParallax();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
   return (
     <section
       id="inicio"
@@ -58,11 +101,12 @@ export const Hero: React.FC<HeroProps> = ({ onBookNow }) => {
       aria-label="Portada cinematográfica de La Caballería Club de Equitación"
     >
       {/* 1. Fotografía de fondo nítida y visible con iluminación cinematográfica */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 overflow-hidden">
         <img
+          ref={bgImgRef}
           src="https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=2600&q=95"
           alt="Majestuoso caballo y jinete en pista de equitación"
-          className="w-full h-full object-cover object-center filter contrast-[1.14] brightness-[0.52] saturate-[0.82] scale-100 transition-transform duration-1000 ease-out"
+          className="w-full h-full object-cover object-center filter contrast-[1.14] brightness-[0.52] saturate-[0.82] will-change-transform"
           loading="eager"
         />
 
@@ -98,7 +142,10 @@ export const Hero: React.FC<HeroProps> = ({ onBookNow }) => {
       </div>
 
       {/* 2. Contenido Central */}
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center">
+      <div
+        ref={heroContentRef}
+        className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center will-change-transform"
+      >
         {/* Ornamento superior arquitectónico con emblema sutil */}
         <div className="flex items-center justify-center gap-3 sm:gap-5 mb-4 sm:mb-5 w-full max-w-md opacity-90" aria-hidden="true">
           <span className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-white/35 to-[#D21923]" />
@@ -119,13 +166,13 @@ export const Hero: React.FC<HeroProps> = ({ onBookNow }) => {
           {/* Capa de aura trasera sutil para dar relieve y volumen */}
           <span
             aria-hidden="true"
-            className="font-sans font-black uppercase tracking-tight sm:tracking-tighter text-[clamp(2.35rem,9.8vw,10.5rem)] leading-[0.9] text-transparent [-webkit-text-stroke:1px_rgba(210,25,35,0.4)] blur-[3px] select-none pointer-events-none absolute inset-0 translate-y-[2px]"
+            className="font-brand-display font-bold uppercase tracking-[0.04em] sm:tracking-[0.06em] text-[clamp(2.25rem,8.4vw,8.75rem)] leading-[0.95] text-transparent [-webkit-text-stroke:1px_rgba(210,25,35,0.45)] blur-[3px] select-none pointer-events-none absolute inset-0 translate-y-[2px]"
           >
             LA CABALLERÍA
           </span>
 
           {/* Titular visible con barrido de luz seda-blanco y destello carmesí */}
-          <h1 className="hero-title-magic relative font-sans font-black uppercase tracking-tight sm:tracking-tighter text-[clamp(2.35rem,9.8vw,10.5rem)] leading-[0.9] select-none">
+          <h1 className="hero-title-magic relative font-brand-display font-bold uppercase tracking-[0.04em] sm:tracking-[0.06em] text-[clamp(2.25rem,8.4vw,8.75rem)] leading-[0.95] select-none">
             LA CABALLERÍA
           </h1>
         </div>

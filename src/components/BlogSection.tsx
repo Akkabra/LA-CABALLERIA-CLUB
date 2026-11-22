@@ -11,6 +11,7 @@ import {
   Newspaper,
 } from 'lucide-react';
 import type { BlogCategory, BlogPost } from '../types';
+import { ScrollReveal } from './FadeInSection';
 
 interface BlogSectionProps {
   posts: BlogPost[];
@@ -78,7 +79,7 @@ export const BlogSection: React.FC<BlogSectionProps> = ({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Section Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-6">
+        <ScrollReveal variant="up" className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-6">
           <div>
             <div className="inline-flex items-center gap-2 mb-2 text-xs font-mono uppercase tracking-widest text-[#D21923] font-bold">
               <BookOpen className="w-4 h-4 text-[#D21923]" />
@@ -124,7 +125,7 @@ export const BlogSection: React.FC<BlogSectionProps> = ({
               )
             )}
           </div>
-        </div>
+        </ScrollReveal>
 
         {/* Articles Grid */}
         {isLoading && publishedPosts.length === 0 ? (
@@ -142,13 +143,13 @@ export const BlogSection: React.FC<BlogSectionProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-            {filteredPosts.map((post) => {
+            {filteredPosts.map((post, idx) => {
               const catInfo = CATEGORY_META[post.category] || CATEGORY_META['noticias-club'];
               return (
-                <article
-                  key={post.id}
-                  className="group bg-[#1A1A1D] border border-white/10 hover:border-[#D21923]/60 transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-xl"
-                >
+                <ScrollReveal key={post.id} variant="up" delay={(idx % 3) * 90} className="h-full">
+                  <article
+                    className="h-full group bg-[#1A1A1D] border border-white/10 hover:border-[#D21923]/60 transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-xl"
+                  >
                   <div>
                     {/* Cover Image */}
                     <div className="relative h-52 overflow-hidden bg-black">
@@ -203,6 +204,7 @@ export const BlogSection: React.FC<BlogSectionProps> = ({
                     </button>
                   </div>
                 </article>
+              </ScrollReveal>
               );
             })}
           </div>
